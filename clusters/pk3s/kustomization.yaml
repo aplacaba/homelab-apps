@@ -3,5 +3,5 @@ kind: Kustomization
 namespace: flux-system
 
 # Flux will reconcile all resources found in this directory
-# Add your application manifests or kustomization overlays here
-resources: []
+resources:
+  - flux-dashboard.yaml
