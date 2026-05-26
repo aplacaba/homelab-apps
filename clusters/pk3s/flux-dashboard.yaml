@@ -8,10 +8,7 @@ spec:
     - web
   routes:
     - kind: Rule
-      match: PathPrefix(`/fluxops`)
-      middlewares:
-        - name: fluxops-stripprefix
-          namespace: flux-system
+      match: Host(`fluxops.local`)
       services:
         - name: flux-operator
           port: 9080
