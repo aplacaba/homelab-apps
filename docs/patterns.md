@@ -17,6 +17,9 @@ pk3s (k3s v1.34)
 ```
 clusters/pk3s/
 ├── kustomization.yaml       # Root: references all app directories
+├── flux-dashboard/          # Flux Operator web UI
+│   ├── kustomization.yaml
+│   └── ingressroute.yaml
 └── <app-name>/
     ├── kustomization.yaml   # Lists all resources for this app
     ├── namespace.yaml       # Namespace (if app gets its own)
