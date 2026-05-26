@@ -4,4 +4,5 @@ kind: Kustomization
 # Flux will reconcile all resources found in this directory
 resources:
   - flux-dashboard
+  - forgejo
   - paperless

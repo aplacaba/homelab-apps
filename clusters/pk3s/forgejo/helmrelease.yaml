@@ -1,0 +1,72 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: forgejo
+      version: "17.1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: forgejo
+        namespace: flux-system
+  values:
+    image:
+      rootless: true
+
+    gitea:
+      admin:
+        username: forgejo-admin
+        password: admin123
+        email: admin@forgejo.local
+      config:
+        server:
+          DOMAIN: forgejo.local
+          ROOT_URL: http://forgejo.local:30080
+
+    ingress:
+      enabled: true
+      className: traefik
+      hosts:
+        - host: forgejo.local
+          paths:
+            - path: /
+              pathType: Prefix
+              port: http
+
+    service:
+      http:
+        type: ClusterIP
+        port: 3000
+      ssh:
+        type: ClusterIP
+        port: 22
+
+    persistence:
+      enabled: true
+      create: true
+      size: 10Gi
+      storageClass: local-path
+
+    postgresql:
+      enabled: true
+      auth:
+        username: forgejo
+        password: forgejo
+        database: forgejo
+      primary:
+        persistence:
+          size: 5Gi
+          storageClass: local-path
+
+    postgresql-ha:
+      enabled: false
+
+    redis:
+      enabled: false
+
+    redis-cluster:
+      enabled: false
