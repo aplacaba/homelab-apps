@@ -7,4 +7,5 @@ resources:
   - flux-dashboard
   - forgejo
   - forgejo-runner
+  - it-tools
   - paperless
