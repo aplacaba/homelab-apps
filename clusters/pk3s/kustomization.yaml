@@ -3,5 +3,5 @@ kind: Kustomization
 
 # Flux will reconcile all resources found in this directory
 resources:
-  - flux-dashboard.yaml
+  - flux-dashboard
   - paperless
