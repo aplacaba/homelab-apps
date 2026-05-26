@@ -1,0 +1,60 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: paperless
+      version: "7.0.x"
+      sourceRef:
+        kind: HelmRepository
+        name: pascaliske
+        namespace: flux-system
+  values:
+    image:
+      registry: ghcr.io
+      repository: paperless-ngx/paperless-ngx
+
+    env:
+      - name: TZ
+        value: Asia/Manila
+      - name: PAPERLESS_DBENGINE
+        value: sqlite
+
+    secret:
+      create: true
+      values:
+        PAPERLESS_ADMIN_USER: admin
+        PAPERLESS_ADMIN_PASSWORD: admin
+        PAPERLESS_ADMIN_MAIL: admin@paperless.local
+
+    persistentVolumeClaim:
+      create: true
+      size: 10Gi
+      storageClassName: local-path
+      accessMode: ReadWriteOnce
+
+    ingressRoute:
+      create: true
+      entryPoints:
+        - web
+      rule: Host(`paperless.local`)
+
+    redis:
+      enabled: true
+      fullnameOverride: paperless-redis
+      persistentVolumeClaim:
+        create: true
+        size: 1Gi
+        storageClassName: local-path
+
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 256Mi
