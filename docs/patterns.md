@@ -188,6 +188,7 @@ Add to `/etc/hosts`:
 | App | URL |
 |-----|-----|
 | Flux Operator | `http://fluxops.local:30080/` |
+| Forgejo | `http://forgejo.local:30080/` |
 | Paperless | `http://paperless.local:30080/` |
 
 ## Existing HelmRepositories
@@ -195,6 +196,7 @@ Add to `/etc/hosts`:
 | Name | URL | Used by |
 |------|-----|---------|
 | `pascaliske` (flux-system) | `https://charts.pascaliske.dev` | paperless |
+| `forgejo` (flux-system) | `oci://codeberg.org/forgejo-contrib` | forgejo |
 
 ## Notes
 
