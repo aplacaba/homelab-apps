@@ -1,0 +1,44 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo-runner
+  namespace: forgejo-runner
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: forgejo-runner
+      version: "0.7.x"
+      sourceRef:
+        kind: HelmRepository
+        name: forgejo-runner
+        namespace: flux-system
+  values:
+    knownLastVersion: true
+    runner:
+      config:
+        create: true
+        instance: http://forgejo-http.forgejo.svc.cluster.local:3000
+        name: pk3s-runner
+        token: ZKQPP2s4HnQzwM-mC_cQ7r7CoXnC2tApdKBoeWkrOo8
+        insecure: false
+      file:
+        runner:
+          labels:
+            - "ubuntu-latest:docker://node:16-bullseye"
+            - "ubuntu-22.04:docker://node:16-bullseye"
+    dind:
+      resources:
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 128Mi
