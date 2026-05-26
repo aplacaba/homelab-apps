@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+
+# Flux will reconcile all resources found in this directory
+# Add your application manifests or kustomization overlays here
+resources: []
