@@ -23,9 +23,6 @@ spec:
         value: Asia/Manila
       - name: PAPERLESS_DBENGINE
         value: sqlite
-      - name: PAPERLESS_URL
-        value: /paperless
-
     secret:
       create: true
       values:
@@ -43,10 +40,7 @@ spec:
       create: true
       entryPoints:
         - web
-      rule: PathPrefix(`/paperless`)
-      middlewares:
-        - name: paperless-stripprefix
-          namespace: paperless
+      rule: Host(`paperless.local`)
 
     redis:
       enabled: true
