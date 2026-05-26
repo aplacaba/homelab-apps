@@ -18,11 +18,4 @@ spec:
       repository: corentinth/it-tools
       tag: latest
     ingress:
-      enabled: true
-      className: traefik
-      hosts:
-        - host: it-tools.local
-          paths:
-            - path: /
-              pathType: Prefix
-              port: 8080
+      enabled: false
