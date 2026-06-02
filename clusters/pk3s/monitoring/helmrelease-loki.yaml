@@ -51,6 +51,15 @@ spec:
           cpu: 500m
           memory: 1Gi
 
+    # Zero out default replicas for scalable targets (default: 3 each)
+    # to avoid conflict with singleBinary mode
+    backend:
+      replicas: 0
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+
     monitoring:
       dashboards:
         enabled: true
