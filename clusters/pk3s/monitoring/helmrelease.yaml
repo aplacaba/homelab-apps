@@ -99,11 +99,8 @@ spec:
       service:
         type: ClusterIP
         port: 3000
-      ingressRoute:
-        create: true
-        entryPoints:
-          - web
-        rule: Host(`grafana.local`)
+      ingress:
+        enabled: false
       persistence:
         enabled: true
         storageClassName: local-path
