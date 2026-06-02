@@ -121,12 +121,6 @@ spec:
         auth.anonymous:
           enabled: false
       additionalDataSources:
-        - name: Prometheus
-          type: prometheus
-          uid: prometheus
-          url: http://prometheus-kube-p-prometheus.monitoring:9090
-          access: proxy
-          isDefault: true
         - name: Loki
           type: loki
           uid: loki
