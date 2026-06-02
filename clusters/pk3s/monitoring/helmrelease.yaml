@@ -1,0 +1,170 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "69.x"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # ---------------------------------------------------------------
+    # Global settings
+    # ---------------------------------------------------------------
+    fullnameOverride: "prometheus"
+
+    # ---------------------------------------------------------------
+    # Prometheus
+    # ---------------------------------------------------------------
+    prometheus:
+      prometheusSpec:
+        retention: 7d
+        retentionSize: 10GB
+        replicas: 1
+        replicasExternalLabelName: ""
+        walCompression: true
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 20Gi
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+
+    # ---------------------------------------------------------------
+    # Alertmanager
+    # ---------------------------------------------------------------
+    alertmanager:
+      enabled: true
+      alertmanagerSpec:
+        replicas: 1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local-path
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 5Gi
+
+    # ---------------------------------------------------------------
+    # Grafana
+    # ---------------------------------------------------------------
+    grafana:
+      enabled: true
+      replicas: 1
+      defaultDashboardsEnabled: true
+      admin:
+        existingSecret: ""
+        user: admin
+        password: admin
+      service:
+        type: ClusterIP
+        port: 3000
+      ingressRoute:
+        create: true
+        entryPoints:
+          - web
+        rule: Host(`grafana.local`)
+      persistence:
+        enabled: true
+        storageClassName: local-path
+        size: 5Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      grafana.ini:
+        server:
+          root_url: http://grafana.local:30080
+        auth.anonymous:
+          enabled: false
+      additionalDataSources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://prometheus-kube-p-prometheus.monitoring:9090
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://loki.monitoring:3100
+          access: proxy
+          isDefault: false
+
+    # ---------------------------------------------------------------
+    # kube-state-metrics
+    # ---------------------------------------------------------------
+    kube-state-metrics:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+    # ---------------------------------------------------------------
+    # prometheus-node-exporter
+    # ---------------------------------------------------------------
+    prometheus-node-exporter:
+      enabled: true
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+    # ---------------------------------------------------------------
+    # Disable built-in kubelet / etcd / controller-manager / scheduler
+    # service monitors since k3s may not expose them in standard ways.
+    # We still get core node + pod metrics via node-exporter and
+    # kube-state-metrics.
+    # ---------------------------------------------------------------
+    kubelet:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        # k3s uses a different kubelet port; auto-detect should work
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+    coreDns:
+      enabled: true
+      serviceMonitor:
+        enabled: true

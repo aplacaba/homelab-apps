@@ -182,21 +182,26 @@ All apps route through **Traefik** on `http://<node-ip>:30080`.
 
 Add to `/etc/hosts`:
 ```
-192.168.254.50 fluxops.local paperless.local <your-app>.local
+192.168.254.50 fluxops.local grafana.local paperless.local <your-app>.local
 ```
 
-| App | URL |
-|-----|-----|
-| Flux Operator | `http://fluxops.local:30080/` |
-| Forgejo | `http://forgejo.local:30080/` |
-| Paperless | `http://paperless.local:30080/` |
+| App | URL | Namespace |
+|-----|-----|-----------|
+| Flux Operator | `http://fluxops.local:30080/` | flux-system |
+| Grafana | `http://grafana.local:30080/` | monitoring |
+| Forgejo | `http://forgejo.local:30080/` | forgejo |
+| Paperless | `http://paperless.local:30080/` | paperless |
 
 ## Existing HelmRepositories
 
 | Name | URL | Used by |
 |------|-----|---------|
+| Name | URL | Used by |
+|------|-----|---------|
 | `pascaliske` (flux-system) | `https://charts.pascaliske.dev` | paperless |
 | `forgejo` (flux-system) | `oci://codeberg.org/forgejo-contrib` | forgejo |
+| `prometheus-community` (flux-system) | `https://prometheus-community.github.io/helm-charts` | monitoring (kube-prometheus-stack) |
+| `grafana` (flux-system) | `https://grafana.github.io/helm-charts` | monitoring (loki) |
 
 ## Notes
 

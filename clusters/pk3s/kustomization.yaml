@@ -8,4 +8,5 @@ resources:
   - forgejo
   - forgejo-runner
   - it-tools
+  - monitoring
   - paperless
