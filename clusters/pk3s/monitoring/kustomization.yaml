@@ -7,4 +7,3 @@ resources:
   - helmrepository-loki.yaml
   - helmrelease.yaml
   - helmrelease-loki.yaml
-  - servicemonitor-traefik.yaml
