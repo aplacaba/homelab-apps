@@ -34,6 +34,7 @@ spec:
         max_concurrent: 4
       compactor:
         retention_enabled: true
+        delete_request_store: filesystem
       retention: 7d
 
     deploymentMode: SingleBinary
