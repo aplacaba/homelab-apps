@@ -4,6 +4,7 @@ kind: Kustomization
 # Flux will reconcile all resources found in this directory
 resources:
   - excalidraw
+  - floci
   - flux-dashboard
   - forgejo
   - forgejo-runner

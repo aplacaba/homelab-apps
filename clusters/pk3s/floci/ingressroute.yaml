@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: floci
+  namespace: floci
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`floci.local`)
+      services:
+        - name: floci
+          port: 4566

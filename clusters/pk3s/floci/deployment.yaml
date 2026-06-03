@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: floci
+  namespace: floci
+  labels:
+    app: floci
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: floci
+  template:
+    metadata:
+      labels:
+        app: floci
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: floci
+          image: floci/floci:latest
+          ports:
+            - containerPort: 4566
+              name: aws
+          env:
+            - name: FLOCI_STORAGE_MODE
+              value: hybrid
+            - name: FLOCI_DEFAULT_REGION
+              value: us-east-1
+            - name: FLOCI_DEFAULT_ACCOUNT_ID
+              value: "000000000000"
+            - name: FLOCI_HOSTNAME
+              value: floci.floci.svc.cluster.local
+            - name: FLOCI_BASE_URL
+              value: http://floci.floci.svc.cluster.local:4566
+            # Explicitly set port to override Kubernetes-injected FLOCI_PORT
+            - name: FLOCI_PORT
+              value: "4566"
+            - name: QUARKUS_HTTP_PORT
+              value: "4566"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /_localstack/health
+              port: aws
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /_localstack/health
+              port: aws
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: floci-data
