@@ -47,6 +47,12 @@ spec:
       bootstrap_email: "admin@authentik.local"
       bootstrap_token: "bootstrap-token-change-me"
 
+      # Database and cache connection credentials
+      postgresql:
+        password: "authentik-db-pass"
+      redis:
+        password: "authentik-redis-pass"
+
     # ------------------------------------------------------------------
     # Authentik server components
     # ------------------------------------------------------------------
@@ -82,10 +88,12 @@ spec:
     # ------------------------------------------------------------------
     postgresql:
       enabled: true
-      postgresqlPassword: "authentik-db-pass"
-      postgresqlDatabase: authentik
+      auth:
+        password: "authentik-db-pass"
+        database: authentik
+        username: authentik
       image:
-        tag: 15
+        tag: latest
       persistence:
         size: 8Gi
         storageClass: local-path
@@ -105,7 +113,7 @@ spec:
       auth:
         password: "authentik-redis-pass"
       image:
-        tag: 7.4
+        tag: latest
       architecture: standalone
       master:
         persistence:
