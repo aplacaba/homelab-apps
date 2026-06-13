@@ -23,6 +23,16 @@ spec:
         value: Asia/Manila
       - name: PAPERLESS_DBENGINE
         value: sqlite
+      # Trust Authentik's identity from the forward-auth gate. The
+      # authentik-forwardauth middleware injects X-authentik-username on every
+      # authenticated request (see traefik/middlewares); paperless reads it via
+      # Django's normalized request.META key and auto-creates the user. With this
+      # on, paperless logs you in straight from Authentik — no paperless login
+      # screen. The forward-auth gate (IngressRoute) is still the required entry.
+      - name: PAPERLESS_ENABLE_HTTP_REMOTE_USER
+        value: "true"
+      - name: PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME
+        value: HTTP_X_AUTHENTIK_USERNAME
     secret:
       create: true
       values:
