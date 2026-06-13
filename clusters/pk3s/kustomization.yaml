@@ -3,6 +3,7 @@ kind: Kustomization
 
 # Flux will reconcile all resources found in this directory
 resources:
+  - authentik
   - excalidraw
   - floci
   - flux-dashboard
@@ -11,3 +12,4 @@ resources:
   - it-tools
   - monitoring
   - paperless
+  - traefik
