@@ -61,10 +61,12 @@ spec:
       resources:
         requests:
           cpu: 100m
-          memory: 256Mi
+          memory: 512Mi
         limits:
           cpu: 500m
-          memory: 512Mi
+          # Was 512Mi — too tight for Django+gunicorn+embedded outpost, caused
+          # repeated OOMKilled (137) and intermittent 500s that broke logins.
+          memory: 1Gi
       service:
         servicePortHttp: 80
         servicePortHttpName: http
@@ -76,10 +78,11 @@ spec:
       resources:
         requests:
           cpu: 100m
-          memory: 256Mi
+          memory: 512Mi
         limits:
           cpu: 500m
-          memory: 512Mi
+          # Was 512Mi — worker ran at ~450Mi and OOMKilled (CrashLoopBackOff).
+          memory: 1Gi
 
 
 
