@@ -36,8 +36,10 @@ spec:
       storageClassName: local-path
       accessMode: ReadWriteOnce
 
+    # We manage the IngressRoute ourselves (see ingressroute.yaml) because
+    # gating behind Authentik needs two routes, which the chart can't express.
     ingressRoute:
-      create: true
+      create: false
       entryPoints:
         - web
       rule: Host(`paperless.local`)

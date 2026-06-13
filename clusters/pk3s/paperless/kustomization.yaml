@@ -5,3 +5,4 @@ resources:
   - helmrepository.yaml
   - namespace.yaml
   - helmrelease.yaml
+  - ingressroute.yaml

@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  entryPoints:
+    - web
+  routes:
+    # 1) Authentik outpost endpoints hit by the browser during/after login.
+    #    These MUST reach Authentik directly, WITHOUT the forward-auth
+    #    middleware, otherwise the post-login redirect loops or 404s.
+    - kind: Rule
+      match: Host(`paperless.local`) && PathPrefix(`/outpost.goauthentik.io/`)
+      services:
+        - name: authentik-server
+          namespace: authentik
+          port: 80
+    # 2) The application itself, gated by Authentik forward-auth.
+    - kind: Rule
+      match: Host(`paperless.local`)
+      middlewares:
+        - name: authentik-forwardauth
+          namespace: traefik
+      services:
+        - name: paperless
+          namespace: paperless
+          port: 8000
