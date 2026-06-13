@@ -16,8 +16,10 @@ spec:
       - X-authentik-email
       - X-authentik-name
       - X-authentik-uid
-    # Headers forwarded from the original request to Authentik
-    authRequestHeaders:
-      - X-Forwarded-Host
-      - X-Forwarded-Proto
-      - X-Forwarded-For
+    # NOTE: do NOT set `authRequestHeaders` here. In Traefik, once you set it,
+    # ONLY the listed headers are forwarded to the auth server — which would
+    # exclude the `Cookie` header, so the outpost could never see the session
+    # cookie and forward-auth would loop forever (re-authenticating each
+    # request). Omitting it (the default) forwards ALL request headers,
+    # including Cookie. Traefik still sets X-Forwarded-Host/Proto/For itself.
+    # This matches the official authentik forward-auth middleware.
