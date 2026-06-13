@@ -84,6 +84,8 @@ spec:
       enabled: true
       postgresqlPassword: "authentik-db-pass"
       postgresqlDatabase: authentik
+      image:
+        tag: 15.8.0-debian-12
       persistence:
         size: 8Gi
         storageClass: local-path
@@ -102,6 +104,8 @@ spec:
       enabled: true
       auth:
         password: "authentik-redis-pass"
+      image:
+        tag: 7.4.1-debian-12
       architecture: standalone
       master:
         persistence:
