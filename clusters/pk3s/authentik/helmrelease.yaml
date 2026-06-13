@@ -62,6 +62,8 @@ spec:
       service:
         servicePortHttp: 80
         servicePortHttpName: http
+      ingress:
+        enabled: false
 
     worker:
       replicas: 1
@@ -73,11 +75,7 @@ spec:
           cpu: 500m
           memory: 256Mi
 
-    # ------------------------------------------------------------------
-    # Disable built-in ingress — we use a manual Traefik IngressRoute
-    # ------------------------------------------------------------------
-    ingress:
-      enabled: false
+
 
     # ------------------------------------------------------------------
     # PostgreSQL (built-in subchart)
