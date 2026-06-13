@@ -265,3 +265,103 @@ The complete working configuration, verified end-to-end:
 
 Behavior: `http://paperless.local:30080` → 302 → Authentik login → authenticated
 session → Paperless.
+
+---
+
+## Single sign-on INTO the app (remote-user mode)
+
+The forward-auth **gate** only controls *who can reach* the app — it does **not**
+log the user *into* the app. Without extra config the user authenticates against
+Authentik at the gate, then sees the app's own login screen again. To make the
+app log the user in straight from Authentik (true SSO, no second login), have
+the app trust the `X-authentik-username` header the gate injects.
+
+This is the **remote-user** approach. It's far simpler than full OIDC and works
+for any app that supports a trusted-header / `REMOTE_USER` login. Paperless-ngx
+is the worked example below; the same idea applies elsewhere.
+
+> **Why this over OIDC?** The official authentik paperless docs describe OIDC,
+> which requires the app's server to reach Authentik at the *browser's* hostname
+> (issuer match), plus a client secret, plus a CoreDNS override in this `.local`
+> setup. Remote-user mode needs **none** of that — it reuses the gate that's
+> already working. The trade-off: no OIDC logout / group sync / token reuse.
+> For a homelab it's the pragmatic choice.
+
+### Paperless: enable remote-user auth
+
+Add to the Paperless `values.env` (`clusters/pk3s/paperless/helmrelease.yaml`):
+
+```yaml
+env:
+  # Log the user in from the X-authentik-username header the gate injects.
+  - name: PAPERLESS_ENABLE_HTTP_REMOTE_USER
+    value: "true"
+  # ALSO authenticate the API. Without this, paperless's HttpRemoteUserMiddleware
+  # deliberately SKIPS /api/ requests — the UI page loads (200) but every
+  # /api/* call (e.g. /api/ui_settings/) returns 401/403. This adds DRF
+  # PaperlessRemoteUserAuthentication.
+  - name: PAPERLESS_ENABLE_HTTP_REMOTE_USER_API
+    value: "true"
+  # Django's normalized request.META key for the X-Authentik-Username header.
+  - name: PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME
+    value: HTTP_X_AUTHENTIK_USERNAME
+```
+
+With these on, Authentik users are **auto-created** in Paperless (Django
+`RemoteUserBackend`, `create_unknown_user=True`) on first login and logged in
+automatically — no Paperless login screen.
+
+### The gotcha: auto-created users have zero permissions  ⚠️
+
+This is the cause of the `403 Forbidden` / "You do not have permission to
+perform this action" on `/api/ui_settings/` after login. Paperless gates its
+API on Django model permissions (`PaperlessObjectPermissions` requires e.g.
+`documents.view_uisettings`). Auto-created users are **not** superusers and have
+**no** permissions, so every API call is denied even though the user is logged in.
+
+The fix is a one-time per-user permission grant. The clean pattern is a
+**group with all document permissions** (full app access, but not superuser):
+
+```bash
+kubectl exec -n paperless deploy/paperless -- python3 /usr/src/paperless/src/manage.py shell -c "
+from django.contrib.auth.models import Group, Permission, User
+grp, _ = Group.objects.get_or_create(name='authentik-users')
+grp.permissions.set(Permission.objects.filter(content_type__app_label='documents'))
+u = User.objects.get(username='<authentik-username>')   # e.g. akadmin
+u.groups.add(grp)
+print(grp.permissions.count(), 'perms on group; user has view_uisettings:', u.has_perm('documents.view_uisettings'))
+"
+```
+
+The group + memberships live in Paperless's SQLite DB (on its PVC), so they
+**survive Helm upgrades and pod restarts** — but they are **not** in Git (they're
+app state, not config). **For every new Authentik user, add them to the group**
+(or assign perms). For a single-user homelab this is a one-time step.
+
+> **Decision point:** an alternative is to make the user a superuser
+> (`manage.py shell` → `u.is_superuser = True; u.save()`). Simpler, but grants
+> Django-admin and user-management powers too. The group approach is preferred —
+it gives full Paperless use without those powers.
+
+### Security posture (header-trusting is safe here)
+
+Trusting a header is only dangerous if a client can set it. Here it's safe
+because:
+1. **Traefik overwrites** — `forwardAuth.authResponseHeaders` uses
+   `req.Header.Set()`, so Authentik's authoritative `X-authentik-username`
+   **replaces** any value a client sends.
+2. **Paperless is ClusterIP-only** — not directly reachable; the sole path is
+   through Traefik's gate, which requires a valid Authentik session.
+
+So an attacker must authenticate to Authentik first, and can then only be
+themselves — no privilege escalation.
+
+### Verify remote-user SSO
+
+```bash
+# Spoof the header directly to paperless (simulates what Traefik does post-auth).
+# Existing user → 200, fresh authentik user → 200 (auto-created), no header → 302/403.
+kubectl exec -n paperless deploy/paperless -- /bin/sh -c '
+  curl -sS -o /dev/null -w "%{http_code}\n" -H "X-authentik-username: akadmin" http://localhost:8000/api/ui_settings/'
+# 200 = SSO + permissions working
+```
