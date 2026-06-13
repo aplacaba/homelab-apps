@@ -176,6 +176,27 @@ sleep 2
 kubectl -n <namespace> patch helmrelease <name> --type merge -p '{"spec":{"suspend":false}}'
 ```
 
+## Pattern 4: Gate an app behind Authentik (Forward Auth)
+
+To protect an app with Authentik SSO, use Traefik's **forward-auth** middleware
+(which already exists cluster-wide as `authentik-forwardauth` in the `traefik`
+namespace). This needs **two** things the chart-managed IngressRoute can't
+express, so you disable the chart's IngressRoute and write a manual one with
+**two routes**: `/outpost.goauthentik.io/` → Authentik (no middleware), and the
+app itself → behind the middleware.
+
+Full step-by-step (including the two commonly-missed steps that cause 404s) is
+in **[authentik-forward-auth.md](./authentik-forward-auth.md)**. Summary:
+
+1. Authentik UI: create a **Proxy Provider** (Mode: *Forward auth (single
+   application)*; **External host = exact browser URL incl. port**).
+2. Authentik UI: create an **Application** bound to that provider.
+3. Authentik UI: **assign the provider to the `authentik Embedded Outpost`**
+   (Outposts → embedded outpost → Edit → Applications). Easy to miss → 404.
+4. Kubernetes: disable the chart IngressRoute; add a manual two-route
+   `ingressroute.yaml` (template in the runbook).
+5. Verify: the gate returns `302` (redirect to login), never `404`.
+
 ## Accessing Apps
 
 All apps route through **Traefik** on `http://<node-ip>:30080`.
@@ -190,15 +211,16 @@ Add to `/etc/hosts`:
 | Flux Operator | `http://fluxops.local:30080/` | flux-system |
 | Grafana | `http://grafana.local:30080/` | monitoring |
 | Forgejo | `http://forgejo.local:30080/` | forgejo |
-| Paperless | `http://paperless.local:30080/` | paperless |
+| Paperless | `http://paperless.local:30080/` 🔒 | paperless |
+
+🔒 = gated behind Authentik (see [authentik-forward-auth.md](./authentik-forward-auth.md)).
 
 ## Existing HelmRepositories
 
 | Name | URL | Used by |
 |------|-----|---------|
-| Name | URL | Used by |
-|------|-----|---------|
 | `pascaliske` (flux-system) | `https://charts.pascaliske.dev` | paperless |
+| `traefik` (flux-system) | `https://traefik.github.io/charts` | traefik |
 | `forgejo` (flux-system) | `oci://codeberg.org/forgejo-contrib` | forgejo |
 | `prometheus-community` (flux-system) | `https://prometheus-community.github.io/helm-charts` | monitoring (kube-prometheus-stack) |
 | `grafana` (flux-system) | `https://grafana.github.io/helm-charts` | monitoring (loki) |
@@ -210,3 +232,5 @@ Add to `/etc/hosts`:
 - **Storage:** use `local-path` storage class (k3s built-in); no need to specify when chart auto-creates PVCs.
 - **Never use `PathPrefix`** for web UIs — always host-based routing.
 - **kubectl apply** directly works for initial deployment; Flux will reconcile and maintain state afterward.
+- **Traefik is Flux-managed** (`clusters/pk3s/traefik/`), with `providers.kubernetesCRD.allowCrossNamespace: true` enabled so gated apps can reference the `authentik-forwardauth` middleware across namespaces. If this flag is off, cross-namespace IngressRoute references silently fail.
+- **Gating behind Authentik** adds two extra steps people forget: the app IngressRoute needs an `/outpost.goauthentik.io/` route, and the provider must be assigned to the embedded outpost. See [Pattern 4](#pattern-4-gate-an-app-behind-authentik-forward-auth) and [authentik-forward-auth.md](./authentik-forward-auth.md).
