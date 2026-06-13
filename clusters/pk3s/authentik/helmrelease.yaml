@@ -59,6 +59,9 @@ spec:
         limits:
           cpu: 500m
           memory: 512Mi
+      service:
+        servicePortHttp: 80
+        servicePortHttpName: http
 
     worker:
       replicas: 1
@@ -75,14 +78,6 @@ spec:
     # ------------------------------------------------------------------
     ingress:
       enabled: false
-
-    # ------------------------------------------------------------------
-    # Service configuration
-    # ------------------------------------------------------------------
-    service:
-      web:
-        port: 80
-        name: http
 
     # ------------------------------------------------------------------
     # PostgreSQL (built-in subchart)
