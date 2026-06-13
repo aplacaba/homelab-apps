@@ -31,6 +31,13 @@ spec:
       # screen. The forward-auth gate (IngressRoute) is still the required entry.
       - name: PAPERLESS_ENABLE_HTTP_REMOTE_USER
         value: "true"
+      # Authenticate the API too (paperless's middleware skips /api/ unless this
+      # is set). Adds PaperlessRemoteUserAuthentication to DRF and stops the
+      # remote-user middleware from skipping API requests. Needed because the
+      # Angular UI calls /api/* — without it those return 401/403 even though
+      # the frontend page loaded fine.
+      - name: PAPERLESS_ENABLE_HTTP_REMOTE_USER_API
+        value: "true"
       - name: PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME
         value: HTTP_X_AUTHENTIK_USERNAME
     secret:
