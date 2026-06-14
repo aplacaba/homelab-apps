@@ -10,5 +10,5 @@ spec:
     - kind: Rule
       match: Host(`fgit.watchtoken.org`)
       services:
-        - name: forgejo
+        - name: forgejo-http
           port: 3000
