@@ -24,8 +24,8 @@ spec:
         email: admin@forgejo.local
       config:
         server:
-          DOMAIN: forgejo.local
-          ROOT_URL: http://forgejo.local:30080
+          DOMAIN: fgit.watchtoken.org
+          ROOT_URL: https://fgit.watchtoken.org
 
     ingress:
       enabled: true

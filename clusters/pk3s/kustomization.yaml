@@ -4,6 +4,7 @@ kind: Kustomization
 # Flux will reconcile all resources found in this directory
 resources:
   - authentik
+  - cloudflared
   - excalidraw
   - floci
   - flux-dashboard
