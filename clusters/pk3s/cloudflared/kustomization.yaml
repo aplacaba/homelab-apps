@@ -5,4 +5,4 @@ resources:
   - namespace.yaml
   - secret.yaml
   - helmrelease.yaml
-  # - helmrepository.yaml   # lives in flux-system
+  - helmrepository.yaml
