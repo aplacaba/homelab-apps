@@ -22,11 +22,11 @@ spec:
         name: pk3s-runner
         token: ZKQPP2s4HnQzwM-mC_cQ7r7CoXnC2tApdKBoeWkrOo8
         insecure: false
-      file:
-        runner:
-          labels:
-            - "ubuntu-latest:docker://node:16-bullseye"
-            - "ubuntu-22.04:docker://node:16-bullseye"
+        file:
+          runner:
+            labels:
+              - "ubuntu-latest:docker://node:16-bullseye"
+              - "ubuntu-22.04:docker://node:16-bullseye"
     dind:
       resources:
         limits:
