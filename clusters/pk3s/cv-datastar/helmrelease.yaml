@@ -25,6 +25,9 @@ spec:
     imagePullSecrets:
       - name: forgejo-registry-auth
 
+    serviceAccount:
+      create: true
+
     replicaCount: 1
 
     service:
