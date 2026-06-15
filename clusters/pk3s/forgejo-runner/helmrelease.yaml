@@ -25,9 +25,11 @@ spec:
         file:
           runner:
             labels:
-              - "ubuntu-latest:docker://node:16-bullseye"
-              - "ubuntu-22.04:docker://node:16-bullseye"
+              - "ubuntu-latest:docker://node:22-bookworm"
+              - "ubuntu-22.04:docker://node:22-bookworm"
     dind:
+      image:
+        tag: "29.5-dind"
       resources:
         limits:
           cpu: 2000m
