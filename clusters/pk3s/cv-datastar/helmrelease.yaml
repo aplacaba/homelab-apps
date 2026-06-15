@@ -21,7 +21,7 @@ spec:
     image:
       repository: fgit.watchtoken.org/forgejo-admin/cv
       tag: latest
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     imagePullSecrets:
       - name: forgejo-registry-auth
 
