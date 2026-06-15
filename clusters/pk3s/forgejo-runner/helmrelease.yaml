@@ -23,6 +23,8 @@ spec:
         token: ZKQPP2s4HnQzwM-mC_cQ7r7CoXnC2tApdKBoeWkrOo8
         insecure: false
         file:
+          container:
+            privileged: true
           runner:
             labels:
               - "ubuntu-latest:docker://node:22-bookworm"
