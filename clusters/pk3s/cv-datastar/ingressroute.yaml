@@ -12,3 +12,8 @@ spec:
       services:
         - name: cv-datastar
           port: 8080
+    - kind: Rule
+      match: Host(`cv.local`)
+      services:
+        - name: cv-datastar
+          port: 8080
