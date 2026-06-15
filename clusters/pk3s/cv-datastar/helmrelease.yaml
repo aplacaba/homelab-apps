@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: cv-datastar
-      version: "0.1.x"
+      version: "0.2.x"
       sourceRef:
         kind: HelmRepository
         name: cv-datastar
@@ -42,13 +42,8 @@ spec:
         cpu: 10m
         memory: 16Mi
 
-    # nginx needs root for entrypoint config and /var/cache/nginx/
-    podSecurityContext: {}
-    securityContext:
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
+    # Use chart defaults — runAsUser 101 with readOnlyRootFilesystem works
+    # because nginx now listens on port 8080 unprivileged
 
     livenessProbe:
       httpGet:
