@@ -19,7 +19,7 @@ spec:
       enabled: false
 
     image:
-      repository: registry.fgit.watchtoken.org/forgejo-admin/cv
+      repository: fgit.watchtoken.org/forgejo-admin/cv
       tag: latest
       pullPolicy: IfNotPresent
     imagePullSecrets:
