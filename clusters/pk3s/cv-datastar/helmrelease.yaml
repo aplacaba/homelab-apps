@@ -42,18 +42,13 @@ spec:
         cpu: 10m
         memory: 16Mi
 
-    podSecurityContext:
-      runAsNonRoot: true
-      runAsUser: 101
-      runAsGroup: 101
-      fsGroup: 101
-
+    # nginx needs root for entrypoint config and /var/cache/nginx/
+    podSecurityContext: {}
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
           - ALL
-      readOnlyRootFilesystem: false
 
     livenessProbe:
       httpGet:
