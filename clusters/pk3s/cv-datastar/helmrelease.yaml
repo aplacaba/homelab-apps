@@ -42,8 +42,10 @@ spec:
         cpu: 10m
         memory: 16Mi
 
-    # Use chart defaults — runAsUser 101 with readOnlyRootFilesystem works
-    # because nginx now listens on port 8080 unprivileged
+    # Chart defaults work (runAsUser 101, no privilege escalation)
+    # but nginx needs to write /var/cache/nginx/ for temp files
+    securityContext:
+      readOnlyRootFilesystem: false
 
     livenessProbe:
       httpGet:
