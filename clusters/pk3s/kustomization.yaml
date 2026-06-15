@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - authentik
   - cloudflared
+  - cv-datastar
   - excalidraw
   - floci
   - flux-dashboard

@@ -1,0 +1,67 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cv-datastar
+  namespace: cv-datastar
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: cv-datastar
+      version: "0.1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cv-datastar
+        namespace: flux-system
+  values:
+    # We manage the IngressRoute manually (Traefik CRD)
+    ingress:
+      enabled: false
+
+    image:
+      repository: registry.fgit.watchtoken.org/forgejo-admin/cv
+      tag: latest
+      pullPolicy: IfNotPresent
+    imagePullSecrets:
+      - name: forgejo-registry-auth
+
+    replicaCount: 1
+
+    service:
+      type: ClusterIP
+      port: 80
+
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 16Mi
+
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 101
+      runAsGroup: 101
+      fsGroup: 101
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+
+    livenessProbe:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 30
+
+    readinessProbe:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 3
+      periodSeconds: 10

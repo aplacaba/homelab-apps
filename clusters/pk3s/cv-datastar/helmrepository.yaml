@@ -1,0 +1,11 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cv-datastar
+  namespace: flux-system
+spec:
+  type: oci
+  interval: 1h
+  url: oci://fgit.watchtoken.org/forgejo-admin
+  secretRef:
+    name: forgejo-registry-auth
