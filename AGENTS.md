@@ -206,16 +206,60 @@ This allows any app's IngressRoute to reference:
 4. **OCI registry auth:** Charts pushed to `fgit.watchtoken.org` need a `forgejo-registry-auth` docker-registry Secret in `flux-system`.
 5. **Reconciliation lag:** Flux syncs every 1h by default. Force with `kubectl -n flux-system reconcile helmrepository <name>` or `kubectl -n flux-system reconcile kustomization pk3s`.
 6. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
+7. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
+8. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
 
 ## Forgejo Runner
 
 The CI runner runs in `forgejo-runner` namespace, connects to the internal Forgejo
 service (`forgejo-http.forgejo.svc:3000`). Uses Docker-in-Docker sidecar for
 container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
-`docker://node:16-bullseye`).
+`docker://node:22-bookworm`).
 
-To check runner status:
+### Health check
+
 ```bash
+# Pod status
 kubectl get pods -n forgejo-runner
-# or via Forgejo UI: fgit.watchtoken.org → Settings → Actions → Runners
+
+# Recent logs — should show "declared successfully" and "poller launched"
+kubectl logs -n forgejo-runner deploy/forgejo-runner -c runner --tail=10
+
+# Query Forgejo API for queued/active runs
+kubectl exec -n forgejo-runner deploy/forgejo-runner -c runner -- wget -q -O- \
+  http://forgejo-http.forgejo.svc.cluster.local:3000/api/v1/repos/forgejo-admin/cv/actions/runs?limit=3
+
+# Or via Forgejo UI: fgit.watchtoken.org → Settings → Actions → Runners
+```
+
+### When to restart
+
+The runner can go silent after a task cancellation — the poller process stays
+running but stops fetching new tasks. If a workflow run shows `status=waiting` in
+Forgejo but the runner logs show no activity for several minutes, restart it:
+
+```bash
+kubectl rollout restart deploy/forgejo-runner -n forgejo-runner
+```
+
+The new pod registers within ~10 seconds and immediately picks up queued jobs.
+
+### Re-registering with new labels
+
+If the runner labels change in the HelmRelease, the runner must re-register.
+Delete the old registration secret and restart:
+
+```bash
+kubectl delete secret forgejo-runner-config -n forgejo-runner
+kubectl rollout restart deploy/forgejo-runner -n forgejo-runner
+```
+
+### Shell access
+
+```bash
+# Runner container
+kubectl exec -it -n forgejo-runner deploy/forgejo-runner -c runner -- /bin/sh
+
+# Docker-in-Docker sidecar
+kubectl exec -it -n forgejo-runner deploy/forgejo-runner -c dind -- /bin/sh
 ```
