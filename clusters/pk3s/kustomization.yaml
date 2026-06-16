@@ -3,16 +3,12 @@ kind: Kustomization
 
 # Flux will reconcile all resources found in this directory
 resources:
-  - authentik
   - cloudflared
   - cv-datastar
-  - excalidraw
   - floci
   - flux-dashboard
   - forgejo
   - forgejo-runner
-  - it-tools
   - monitoring
-  - paperless
   - sealed-secrets
   - traefik
