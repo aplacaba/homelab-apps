@@ -12,6 +12,7 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
 | **Auth** | Authentik — forward-auth middleware in `traefik` namespace |
 | **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` domains |
+| **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` storage class (k3s built-in) |
 | **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry |
@@ -22,7 +23,7 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
 ├── authentik/                 # SSO/auth (Helm chart)
-├── cloudflared/               # Cloudflare Tunnel (raw manifests)
+├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site (Helm chart, OCI registry)
 ├── excalidraw/                # Drawing app (Helm chart)
 ├── floci/                     # FLOCI tool (raw manifests)
@@ -32,6 +33,7 @@ clusters/pk3s/
 ├── it-tools/                  # IT tool collection (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana (Helm charts)
 ├── paperless/                 # Document management (Helm chart, gated)
+├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 └── traefik/                   # Ingress controller (Helm chart)
 ```
 
@@ -156,6 +158,53 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `excalidraw` | default | `https://excalidraw.github.io/excalidraw-chart` | excalidraw |
 | `authentik` | default | `https://charts.goauthentik.io` | authentik |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
+| `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
+
+## Secret Management (SealedSecrets)
+
+Secrets are **never committed in plaintext**. They are sealed (encrypted with the
+`sealed-secrets` controller's public key) and committed as `SealedSecret` CRs; the
+controller decrypts them in-cluster into ordinary `Secret` objects that apps
+reference. Because decryption happens in-cluster, **Flux needs no changes to its
+sync block** — the `SealedSecret` is applied like any other manifest.
+
+| Component | Detail |
+|-----------|--------|
+| Controller | `sealed-secrets` namespace, Bitnami chart `2.5.x` (controller 0.31.0) |
+| CLI | `kubeseal` at `~/.local/bin/kubeseal` |
+| Example | `clusters/pk3s/cloudflared/sealedsecret.yaml` → decrypts to `Secret cloudflared/tunnel-credentials` |
+
+### Seal a new secret (plaintext never touches git or chat)
+
+```bash
+cd ~/Projects/homelab-apps
+printf 'Secret value: '; IFS= read -rs VAL; echo
+printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: <name>\n  namespace: <ns>\ntype: Opaque\nstringData:\n  key: %s\n' "$VAL" \
+  | kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets \
+             --format yaml --namespace <ns> \
+  > clusters/pk3s/<ns>/sealedsecret.yaml
+unset VAL
+```
+
+Then add `sealedsecret.yaml` to the app's `kustomization.yaml` and commit the
+encrypted form only.
+
+### ⚠️ Back up the master key (out of band)
+
+The controller's private key is **not** in git. Without it, a cluster rebuild
+cannot decrypt any committed `SealedSecret`. Back up all key secrets to a secure
+offline location (password manager / encrypted drive) — never into this repo:
+
+```bash
+kubectl get secret -n sealed-secrets -o custom-columns=NAME:.metadata.name --no-headers \
+  | grep '^sealed-secrets-key' \
+  | while read k; do kubectl get secret "$k" -n sealed-secrets -o yaml; done \
+  > ~/sealed-secrets-key-backup.yaml
+```
+
+Current backup lives at `~/sealed-secrets-key-backup.yaml`. The controller rotates
+keys (~every 30 days); re-export periodically so older `SealedSecret`s stay
+recoverable after a rebuild.
 
 ## Architecture Notes
 
@@ -208,6 +257,7 @@ This allows any app's IngressRoute to reference:
 6. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
 7. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
 8. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
+9. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
 
 ## Forgejo Runner
 
