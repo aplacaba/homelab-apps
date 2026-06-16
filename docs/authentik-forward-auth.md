@@ -1,4 +1,7 @@
-# Authentik Forward Auth — Gating Apps Behind Authentik
+# Authentik Forward Auth — Gating Apps Behind Authentik (archived)
+
+> **Note:** Authentik has been removed from the cluster. This document is kept
+> as reference in case you want to reintroduce it in the future.
 
 How to put any homelab app behind Authentik SSO using Traefik's **forward-auth**
 middleware. Paperless-ngx is the worked example; the pattern applies to any app.
