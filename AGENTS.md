@@ -10,7 +10,7 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Cluster** | pk3s — single-node k3s |
 | **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub |
 | **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
-| **Auth** | Authentik — forward-auth middleware in `traefik` namespace |
+| **Auth** | None (previously Authentik) |
 | **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` domains |
 | **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
@@ -22,17 +22,13 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 ```
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
-├── authentik/                 # SSO/auth (Helm chart)
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site (Helm chart, OCI registry)
-├── excalidraw/                # Drawing app (Helm chart)
 ├── floci/                     # FLOCI tool (raw manifests)
 ├── flux-dashboard/            # Flux web UI (raw manifests)
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)
 ├── forgejo-runner/            # CI runner (Helm chart)
-├── it-tools/                  # IT tool collection (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana (Helm charts)
-├── paperless/                 # Document management (Helm chart, gated)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 └── traefik/                   # Ingress controller (Helm chart)
 ```
@@ -106,24 +102,12 @@ spec:
   `ingress.enabled: false` or `ingressRoute.create: false` in HelmRelease values.
 - For internal apps use `<app>.local` domains; for public ones use `<app>.watchtoken.org`.
 
-### Gating behind Authentik (SSO)
-
-See full runbook in `docs/authentik-forward-auth.md`. Summary:
-
-1. Authentik UI: create a **Proxy Provider** (Mode: Forward auth, External host = exact browser URL **with port**).
-2. Authentik UI: create an **Application** bound to that provider.
-3. Authentik UI: **assign the provider to the embedded outpost** (Outposts → `authentik Embedded Outpost` → Edit → Applications).
-4. Kubernetes: write a **two-route IngressRoute** — one for `/outpost.goauthentik.io/` (direct to Authentik), one for the app (behind the `authentik-forwardauth` middleware).
-5. See `clusters/pk3s/paperless/ingressroute.yaml` for a working example.
-
 ### HelmRelease values — override, don't copy
 
 Only override values that differ from chart defaults. Use the `helmrelease.yaml`
 to pass `values:` — don't duplicate the full `values.yaml` from the chart.
 Reference existing patterns:
 
-- **Paperless** (`clusters/pk3s/paperless/helmrelease.yaml`) — gated app with Redis, PVCs, env vars
-- **it-tools** (`clusters/pk3s/it-tools/helmrelease.yaml`) — simple public app, chart ingress disabled
 - **Forgejo** (`clusters/pk3s/forgejo/helmrelease.yaml`) — full app with PostgreSQL subchart
 - **cv-datastar** (`clusters/pk3s/cv-datastar/helmrelease.yaml`) — static site, OCI chart, imagePullSecrets
 
@@ -149,14 +133,11 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 
 | Name | Type | URL | Used by |
 |---|---|---|---|
-| `pascaliske` | default | `https://charts.pascaliske.dev` | paperless |
 | `traefik` | default | `https://traefik.github.io/charts` | traefik |
 | `forgejo` | OCI | `oci://codeberg.org/forgejo-contrib` | forgejo |
 | `forgejo-runner` | OCI | `oci://codeberg.org/wrenix/helm-charts` | forgejo-runner |
 | `prometheus-community` | default | `https://prometheus-community.github.io/helm-charts` | monitoring |
 | `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki) |
-| `excalidraw` | default | `https://excalidraw.github.io/excalidraw-chart` | excalidraw |
-| `authentik` | default | `https://charts.goauthentik.io` | authentik |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 
@@ -216,11 +197,6 @@ recoverable after a rebuild.
 │               │ GitRepository → Kustomization → HelmRelease      │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ traefik       │ Ingress controller (NodePort 30080/30443)        │
-│               │ Middleware: authentik-forwardauth (cross-ns)      │
-├───────────────┼──────────────────────────────────────────────────┤
-│ authentik     │ SSO — embedded outpost + PostgreSQL              │
-│               │ Service: authentik-server:80                     │
-│               │ Outpost: ak-outpost-authentik-embedded-outpost:9000│
 ├───────────────┼──────────────────────────────────────────────────┤
 │ cloudflared   │ Cloudflare Tunnel (token-based, no config)       │
 │               │ Routes public DNS → internal services            │
@@ -237,9 +213,8 @@ recoverable after a rebuild.
 ### Cross-namespace references
 
 Traefik has `providers.kubernetesCRD.allowCrossNamespace: true` enabled.
-This allows any app's IngressRoute to reference:
-- `authentik-server` service in `authentik` namespace
-- `authentik-forwardauth` middleware in `traefik` namespace
+This allows any app's IngressRoute to reference services and middlewares in
+other namespaces.
 
 ### Public vs internal
 
@@ -249,15 +224,13 @@ This allows any app's IngressRoute to reference:
 
 ## Common Gotchas
 
-1. **Authentik 404:** Provider not assigned to the embedded outpost → always check Outposts → Edit → Applications first.
-2. **Port mismatch:** Authentik External Host must match the browser URL byte-for-byte, port included (`:30080` on LAN).
-3. **Chart ingress vs IngressRoute:** If writing a manual IngressRoute, always disable the chart's built-in ingress.
-4. **OCI registry auth:** Charts pushed to `fgit.watchtoken.org` need a `forgejo-registry-auth` docker-registry Secret in `flux-system`.
-5. **Reconciliation lag:** Flux syncs every 1h by default. Force with `kubectl -n flux-system reconcile helmrepository <name>` or `kubectl -n flux-system reconcile kustomization pk3s`.
-6. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
-7. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
-8. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
-9. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
+1. **Chart ingress vs IngressRoute:** If writing a manual IngressRoute, always disable the chart's built-in ingress.
+2. **OCI registry auth:** Charts pushed to `fgit.watchtoken.org` need a `forgejo-registry-auth` docker-registry Secret in `flux-system`.
+3. **Reconciliation lag:** Flux syncs every 1h by default. Force with `kubectl -n flux-system reconcile helmrepository <name>` or `kubectl -n flux-system reconcile kustomization pk3s`.
+4. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
+5. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
+6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
+7. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
 
 ## Forgejo Runner
 
