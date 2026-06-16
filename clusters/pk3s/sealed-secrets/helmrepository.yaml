@@ -5,4 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1h
-  url: https://charts.bitnami.com/bitnami
+  # Bitnami migrated charts to OCI on Docker Hub; the legacy HTTP index
+  # redirects to oci:// refs that an HTTP-typed repo can't pull.
+  type: oci
+  url: oci://registry-1.docker.io/bitnamicharts
