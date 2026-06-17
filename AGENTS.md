@@ -137,7 +137,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `forgejo` | OCI | `oci://codeberg.org/forgejo-contrib` | forgejo |
 | `forgejo-runner` | OCI | `oci://codeberg.org/wrenix/helm-charts` | forgejo-runner |
 | `prometheus-community` | default | `https://prometheus-community.github.io/helm-charts` | monitoring |
-| `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki) |
+| `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, promtail) |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 
@@ -222,6 +222,18 @@ other namespaces.
   (no TLS termination on the cluster — handled by Cloudflare edge).
 - **Internal** (`*.local`): accessed via `http://192.168.254.50:30080` on LAN.
 
+## Documentation Updates
+
+After making implementation changes, update AGENTS.md to reflect the new state:
+
+- **New app deployed** → Add to Directory Structure and Existing HelmRepositories (if new chart source)
+- **New HelmRepository added** → Add to the HelmRepositories table
+- **New gotcha discovered** → Add to Common Gotchas
+- **Architecture changes** → Update Architecture Notes (cluster layout, cross-ns refs, public vs internal)
+- **New operational procedure** → Add relevant section (health checks, restart procedures, shell access)
+
+This document is the primary guide for AI agents working in this repo — keep it accurate.
+
 ## Common Gotchas
 
 1. **Chart ingress vs IngressRoute:** If writing a manual IngressRoute, always disable the chart's built-in ingress.
@@ -231,6 +243,7 @@ other namespaces.
 5. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
 6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
 7. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
+8. **Loki requires `auth_enabled: false` for Promtail:** The Loki chart defaults `auth_enabled: true`, which requires a tenant ID (X-Scope-OrgID) header. Promtail requests get 401 without it. For single-tenant homelabs, set `loki.auth_enabled: false` in the Loki HelmRelease values.
 
 ## Forgejo Runner
 
