@@ -7,4 +7,5 @@ resources:
   - helmrepository-loki.yaml
   - helmrelease.yaml
   - helmrelease-loki.yaml
+  - helmrelease-promtail.yaml
   - ingressroute.yaml
