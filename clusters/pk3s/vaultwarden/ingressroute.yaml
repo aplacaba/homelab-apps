@@ -11,9 +11,9 @@ spec:
       match: Host(`vault.watchtoken.org`)
       services:
         - name: vaultwarden
-          port: 8080
+          port: 80
     - kind: Rule
       match: Host(`vault.local`)
       services:
         - name: vaultwarden
-          port: 8080
+          port: 80
