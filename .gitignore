@@ -1,2 +1,5 @@
 # Flux
 .env
+
+# Git worktrees
+.worktrees/
