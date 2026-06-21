@@ -30,14 +30,14 @@ spec:
         keepPvc: true
         accessMode: ReadWriteOnce
     smtp:
+      existingSecret: vaultwarden-smtp
       host: smtp.fastmail.com
       port: 465
       security: force_tls
       from: alacaba@fastmail.com
       username:
-        value: alacaba@fastmail.com
+        existingSecretKey: SMTP_USERNAME
       password:
-        existingSecret: vaultwarden-smtp
         existingSecretKey: SMTP_PASSWORD
     resources:
       requests:
