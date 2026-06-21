@@ -12,3 +12,4 @@ resources:
   - monitoring
   - sealed-secrets
   - traefik
+  - vaultwarden

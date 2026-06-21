@@ -30,7 +30,8 @@ clusters/pk3s/
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana (Helm charts)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
-└── traefik/                   # Ingress controller (Helm chart)
+├── traefik/                   # Ingress controller (Helm chart)
+└── vaultwarden/               # Password manager (Helm chart, community repo)
 ```
 
 ## App Deployment Pattern
@@ -140,6 +141,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, promtail) |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
+| `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
 
 ## Secret Management (SealedSecrets)
 

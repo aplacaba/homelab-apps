@@ -1,0 +1,38 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: vaultwarden
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: vaultwarden
+        namespace: flux-system
+  values:
+    ingress:
+      enabled: false
+    fullnameOverride: "vaultwarden"
+    domain: https://vault.watchtoken.org
+    signupsAllowed: false
+    adminToken:
+      existingSecret: vaultwarden-admin-token
+      existingSecretKey: ADMIN_TOKEN
+    storage:
+      data:
+        name: vaultwarden-data
+        size: 1Gi
+        class: local-path
+        keepPvc: true
+        accessMode: ReadWriteOnce
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
