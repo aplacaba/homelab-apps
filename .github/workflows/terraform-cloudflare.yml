@@ -12,21 +12,12 @@ on:
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.6
-
-      - name: Install kubeseal
-        run: |
-          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.38.1/kubeseal-linux-amd64
-          install -m 755 kubeseal-linux-amd64 /usr/local/bin/kubeseal
 
       - name: Terraform init
         working-directory: terraform
@@ -55,23 +46,3 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: terraform apply -auto-approve
-
-      - name: Seal and stage secrets
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        env:
-          KUBESEAL_CERT: ${{ secrets.KUBESEAL_CERT }}
-        run: |
-          echo "$KUBESEAL_CERT" > /tmp/sealed-secrets-cert.pem
-          bash terraform/scripts/seal-and-commit.sh --cert /tmp/sealed-secrets-cert.pem
-
-      - name: Commit and push
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: |
-          git config user.name "terraform-cloudflare-bot"
-          git config user.email "bot@alacaba.org"
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: update Cloudflare secrets from Terraform"
-            git push
-          else
-            echo "No changes to commit"
-          fi
