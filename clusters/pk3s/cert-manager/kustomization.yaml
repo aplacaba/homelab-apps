@@ -6,5 +6,6 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - sealedsecret-cloudflare-api-token.yaml
+  - sealedsecret-cloudflare-alacaba-api-token.yaml
   - clusterissuer-staging.yaml
   - clusterissuer-prod.yaml

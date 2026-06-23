@@ -9,6 +9,14 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
+      - selector:
+          dnsZones:
+            - "alacaba.org"
+        dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-alacaba-api-token
+              key: api-token
       - dns01:
           cloudflare:
             apiTokenSecretRef:
