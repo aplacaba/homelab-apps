@@ -1,15 +1,8 @@
-variable "zone_read_permission_group_id" {
-  type        = string
-  description = "Permission group UUID for 'Zone Read' (32-char hex from API)"
-}
-
-variable "dns_edit_permission_group_id" {
-  type        = string
-  description = "Permission group UUID for 'DNS Edit' (32-char hex from API)"
-}
-
 locals {
-  permission_groups = [{ id = var.zone_read_permission_group_id }, { id = var.dns_edit_permission_group_id }]
+  permission_groups = [
+    { id = "c8fed203ed3043cba015a93ad1616f1f" }, # Zone Read
+    { id = "4755a26eedb94da69e1066d98aa820b" },  # DNS Edit
+  ]
 }
 
 resource "cloudflare_api_token" "cert_manager_watchtoken" {
