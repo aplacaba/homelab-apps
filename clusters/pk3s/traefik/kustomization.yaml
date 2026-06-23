@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrelease.yaml
-  - certificate.yaml
   - tlsstore.yaml
+  # Certificate re-added in Phase B once cert-manager CRDs are installed
+  # - certificate.yaml
   - ./middlewares
