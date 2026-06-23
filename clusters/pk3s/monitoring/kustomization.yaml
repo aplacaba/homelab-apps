@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrepository-loki.yaml
+  - sealedsecret-grafana-admin.yaml
   - helmrelease.yaml
   - helmrelease-loki.yaml
   - helmrelease-promtail.yaml

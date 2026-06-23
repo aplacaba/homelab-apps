@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "69.x"
+      version: "87.0.1"
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
@@ -93,9 +93,9 @@ spec:
       replicas: 1
       defaultDashboardsEnabled: true
       admin:
-        existingSecret: ""
-        user: admin
-        password: admin
+        existingSecret: grafana-admin-secret
+        existingSecretUserKey: admin-user
+        existingSecretPasswordKey: admin-password
       service:
         type: ClusterIP
         port: 3000
