@@ -5,6 +5,6 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrelease.yaml
-  - certificate.yaml
-  - tlsstore.yaml
-  - ./middlewares
+  - sealedsecret-cloudflare-api-token.yaml
+  - clusterissuer-staging.yaml
+  - clusterissuer-prod.yaml
