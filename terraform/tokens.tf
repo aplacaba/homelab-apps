@@ -1,14 +1,15 @@
-data "cloudflare_api_token_permission_groups_list" "all" {}
+variable "zone_read_permission_group_id" {
+  type        = string
+  description = "Permission group UUID for 'Zone Read' (32-char hex from API)"
+}
+
+variable "dns_edit_permission_group_id" {
+  type        = string
+  description = "Permission group UUID for 'DNS Edit' (32-char hex from API)"
+}
 
 locals {
-  zone_read_id = one([
-    for g in data.cloudflare_api_token_permission_groups_list.all.result : g.id
-    if g.name == "Zone Read"
-  ])
-  dns_edit_id = one([
-    for g in data.cloudflare_api_token_permission_groups_list.all.result : g.id
-    if g.name == "DNS Edit"
-  ])
+  permission_groups = [{ id = var.zone_read_permission_group_id }, { id = var.dns_edit_permission_group_id }]
 }
 
 resource "cloudflare_api_token" "cert_manager_watchtoken" {
@@ -16,7 +17,7 @@ resource "cloudflare_api_token" "cert_manager_watchtoken" {
   policies = [
     {
       effect            = "allow"
-      permission_groups = [{ id = local.zone_read_id }, { id = local.dns_edit_id }]
+      permission_groups = local.permission_groups
       resources = jsonencode({
         "com.cloudflare.api.account.zone.${data.cloudflare_zone.watchtoken_org.zone_id}" = "*"
       })
@@ -29,7 +30,7 @@ resource "cloudflare_api_token" "cert_manager_alacaba" {
   policies = [
     {
       effect            = "allow"
-      permission_groups = [{ id = local.zone_read_id }, { id = local.dns_edit_id }]
+      permission_groups = local.permission_groups
       resources = jsonencode({
         "com.cloudflare.api.account.zone.${data.cloudflare_zone.alacaba_org.zone_id}" = "*"
       })
