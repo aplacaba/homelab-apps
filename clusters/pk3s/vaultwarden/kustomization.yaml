@@ -8,3 +8,4 @@ resources:
   - sealedsecret-smtp.yaml
   - helmrelease.yaml
   - ingressroute.yaml
+  - ingressroute-https.yaml

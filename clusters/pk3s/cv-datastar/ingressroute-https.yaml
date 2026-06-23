@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cv-datastar-https
+  namespace: cv-datastar
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`cv.watchtoken.org`)
+      services:
+        - name: cv-datastar
+          port: 8080
+  tls: {}
