@@ -1,3 +1,8 @@
+# Terraform
+.terraform/
+*.tfstate*
+*.tfplan
+
 # Flux
 .env
 

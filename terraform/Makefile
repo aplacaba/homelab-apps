@@ -1,12 +1,12 @@
 .PHONY: init fmt-check validate lint install-hooks
 
 init:
-	terraform init
+	terraform init -backend=false
 
 fmt-check:
 	terraform fmt -check -diff -recursive
 
-validate:
+validate: init
 	terraform validate
 
 lint: fmt-check validate
