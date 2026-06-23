@@ -4,7 +4,9 @@ resource "cloudflare_api_token" "cert_manager_watchtoken" {
     {
       effect            = "allow"
       permission_groups = [{ id = "Zone Read" }, { id = "DNS Edit" }]
-      resources         = "com.cloudflare.api.account.zone.${data.cloudflare_zone.watchtoken_org.zone_id}"
+      resources = jsonencode({
+        "com.cloudflare.api.account.zone.${data.cloudflare_zone.watchtoken_org.zone_id}" = "*"
+      })
     }
   ]
 }
@@ -15,7 +17,9 @@ resource "cloudflare_api_token" "cert_manager_alacaba" {
     {
       effect            = "allow"
       permission_groups = [{ id = "Zone Read" }, { id = "DNS Edit" }]
-      resources         = "com.cloudflare.api.account.zone.${data.cloudflare_zone.alacaba_org.zone_id}"
+      resources = jsonencode({
+        "com.cloudflare.api.account.zone.${data.cloudflare_zone.alacaba_org.zone_id}" = "*"
+      })
     }
   ]
 }
