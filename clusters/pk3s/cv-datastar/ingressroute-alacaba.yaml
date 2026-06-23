@@ -30,4 +30,5 @@ spec:
       services:
         - name: cv-datastar
           port: 8080
-  tls: {}
+  tls:
+    secretName: cv-alacaba-org-tls
