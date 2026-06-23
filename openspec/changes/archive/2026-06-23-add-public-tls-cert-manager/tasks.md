@@ -7,7 +7,7 @@
 - [x] 1.3 Add `helmrelease.yaml` (cert-manager chart `v1.20.2`, `crds.enabled: true`)
 - [x] 1.4 Add `kustomization.yaml` listing the resources
 - [x] 1.5 Add `cert-manager` to root `clusters/pk3s/kustomization.yaml` (alphabetical)
-- [ ] 1.6 Verify cert-manager pods `Ready` in `cert-manager` ns after Flux reconcile
+- [x] 1.6 Verify cert-manager pods `Ready` in `cert-manager` ns after Flux reconcile
 
 ## 2. Cloudflare API token + ClusterIssuers
 
@@ -20,8 +20,8 @@
 ## 3. Wildcard certificate (Certificate lives in `traefik` ns so its Secret lands there)
 
 - [x] 3.1 Add `traefik/certificate.yaml` — wildcard `*.watchtoken.org`, **staging** ClusterIssuer, Secret `wildcard-watchtoken-org-tls` in `traefik` ns; add to `traefik/kustomization.yaml`
-- [ ] 3.2 Confirm `Certificate` reaches `Ready=True` and Secret is populated in `traefik`
-- [ ] 3.3 Switch `certificate.yaml` `issuerRef` to **production**; confirm renewed real cert
+- [x] 3.2 Confirm `Certificate` reaches `Ready=True` and Secret is populated in `traefik`
+- [x] 3.3 Switch `certificate.yaml` `issuerRef` to **production**; confirm renewed real cert
 
 ## 4. Traefik TLS + redirect
 
