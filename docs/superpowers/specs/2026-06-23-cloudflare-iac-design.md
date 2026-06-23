@@ -80,7 +80,7 @@ terraform {
   required_providers {
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 5.0"
+      version = "~> 5.21"
     }
   }
   backend "s3" {
@@ -300,11 +300,11 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.11.x
+          terraform_version: 1.15.6
 
       - name: Install kubeseal
         run: |
-          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.31.0/kubeseal-linux-amd64
+          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.38.1/kubeseal-linux-amd64
           install -m 755 kubeseal-linux-amd64 /usr/local/bin/kubeseal
 
       - name: Terraform init

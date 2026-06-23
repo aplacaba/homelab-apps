@@ -21,11 +21,11 @@ jobs:
 
       - uses: hashicorp/setup-terraform@8f3f96ceb4efcc05ba5c713ad60f9b66c6cdf3c7  # v3.1.2
         with:
-          terraform_version: 1.11.4
+          terraform_version: 1.15.6
 
       - name: Install kubeseal
         run: |
-          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.31.0/kubeseal-linux-amd64
+          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.38.1/kubeseal-linux-amd64
           install -m 755 kubeseal-linux-amd64 /usr/local/bin/kubeseal
 
       - name: Terraform init

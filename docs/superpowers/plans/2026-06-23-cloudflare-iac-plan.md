@@ -6,7 +6,7 @@
 
 **Architecture:** Terraform declares Cloudflare resources; sensitive outputs (tunnel token, API tokens) are piped through `kubeseal` and committed as SealedSecret YAMLs to this repo. Flux syncs them into the cluster. A GitHub Actions workflow runs `terraform apply` on pushes to `terraform/**` on main, then commits the sealed secrets back.
 
-**Tech Stack:** Terraform 1.11.x, Cloudflare provider ~> 5.0, kubeseal 0.31.0, GitHub Actions, R2 (state backend)
+**Tech Stack:** Terraform 1.15.x, Cloudflare provider ~> 5.21, kubeseal 0.38.1, GitHub Actions, R2 (state backend)
 
 ---
 
@@ -21,7 +21,7 @@
 - [ ] **Create `.terraform-version`**
 
 ```text
-1.11.4
+1.15.6
 ```
 
 - [ ] **Create `providers.tf`**
@@ -32,7 +32,7 @@ terraform {
   required_providers {
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 5.0"
+      version = "~> 5.21"
     }
   }
   backend "s3" {
@@ -326,10 +326,9 @@ git add clusters/pk3s/cloudflared/sealedsecret-tunnel-token.yaml \
        clusters/pk3s/cert-manager/sealedsecret-cloudflare-api-token.yaml \
        clusters/pk3s/cert-manager/sealedsecret-cloudflare-alacaba-api-token.yaml
 if ! git diff --cached --quiet; then
-  git commit -m "chore: update Cloudflare secrets from Terraform"
-  echo "Committed. Push to trigger Flux sync."
+  echo "Sealed secrets staged. Run 'git commit && git push' to deploy."
 else
-  echo "No changes to commit."
+  echo "No changes to seal."
 fi
 ```
 
@@ -374,11 +373,11 @@ jobs:
 
       - uses: hashicorp/setup-terraform@8f3f96ceb4efcc05ba5c713ad60f9b66c6cdf3c7  # v3.1.2
         with:
-          terraform_version: 1.11.4
+          terraform_version: 1.15.6
 
       - name: Install kubeseal
         run: |
-          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.31.0/kubeseal-linux-amd64
+          wget -q https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.38.1/kubeseal-linux-amd64
           install -m 755 kubeseal-linux-amd64 /usr/local/bin/kubeseal
 
       - name: Terraform init
