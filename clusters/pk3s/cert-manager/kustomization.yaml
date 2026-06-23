@@ -6,6 +6,5 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - sealedsecret-cloudflare-api-token.yaml
-  # ClusterIssuers re-added in Phase B once cert-manager CRDs are installed
-  # - clusterissuer-staging.yaml
-  # - clusterissuer-prod.yaml
+  - clusterissuer-staging.yaml
+  - clusterissuer-prod.yaml
