@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: wildcard-watchtoken-org-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   commonName: "*.watchtoken.org"
   dnsNames:
