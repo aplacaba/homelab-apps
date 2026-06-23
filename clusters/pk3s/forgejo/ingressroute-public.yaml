@@ -9,6 +9,9 @@ spec:
   routes:
     - kind: Rule
       match: Host(`fgit.watchtoken.org`)
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik
       services:
         - name: forgejo-http
           port: 3000

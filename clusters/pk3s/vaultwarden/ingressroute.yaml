@@ -9,6 +9,9 @@ spec:
   routes:
     - kind: Rule
       match: Host(`vault.watchtoken.org`)
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik
       services:
         - name: vaultwarden
           port: 80
