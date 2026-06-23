@@ -1,7 +1,7 @@
 locals {
   permission_groups = [
     { id = "c8fed203ed3043cba015a93ad1616f1f" }, # Zone Read
-    { id = "4755a26eedb94da69e1066d98aa820b" },  # DNS Edit
+    { id = "4755a26eedb94da69e1066d98aa820be" }, # DNS Write
   ]
 }
 
