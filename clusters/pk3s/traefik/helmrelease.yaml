@@ -8,9 +8,8 @@ spec:
   chart:
     spec:
       chart: traefik
-      # Pinned to the currently-deployed chart for a clean first adoption.
-      # Relax to "40.2.x" afterwards if you want patch-level auto-updates.
-      version: "40.2.0"
+      # Pinned to a specific chart version for controlled upgrades.
+      version: "40.3.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
