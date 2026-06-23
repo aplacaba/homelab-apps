@@ -9,6 +9,9 @@ spec:
   routes:
     - kind: Rule
       match: Host(`cv.watchtoken.org`)
+      middlewares:
+        - name: redirect-to-alacaba
+          namespace: cv-datastar
       services:
         - name: cv-datastar
           port: 8080

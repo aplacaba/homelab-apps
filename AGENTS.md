@@ -12,7 +12,7 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
 | **TLS** | cert-manager + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
-| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` → Traefik `:443` (HTTPS origin, No TLS Verify) |
+| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` and `cv.alacaba.org` → Traefik `:443` (HTTPS origin, No TLS Verify) |
 | **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` storage class (k3s built-in) |
@@ -25,7 +25,7 @@ clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
 ├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
-├── cv-datastar/               # CV site (Helm chart, OCI registry)
+├── cv-datastar/               # CV site — served at cv.alacaba.org (Helm chart, OCI registry)
 ├── floci/                     # FLOCI tool (raw manifests)
 ├── flux-dashboard/            # Flux web UI (raw manifests)
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)

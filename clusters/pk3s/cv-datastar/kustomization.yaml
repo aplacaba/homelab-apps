@@ -8,3 +8,6 @@ resources:
   - helmrelease.yaml
   - ingressroute.yaml
   - ingressroute-https.yaml
+  - ingressroute-alacaba.yaml
+  - certificate-alacaba.yaml
+  - middlewares
