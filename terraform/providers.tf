@@ -7,10 +7,13 @@ terraform {
     }
   }
   backend "s3" {
-    bucket                      = "homelab-tfstate"
-    key                         = "cloudflare/terraform.tfstate"
-    region                      = "auto"
-    endpoint                    = "https://<account-id>.r2.cloudflarestorage.com"
+    bucket = "homelab-tfstate"
+    key    = "cloudflare/terraform.tfstate"
+    region = "auto"
+    endpoints = {
+      s3 = "https://<account-id>.r2.cloudflarestorage.com"
+    }
+    use_path_style              = true
     skip_credentials_validation = true
     skip_region_validation      = true
     skip_requesting_account_id  = true
