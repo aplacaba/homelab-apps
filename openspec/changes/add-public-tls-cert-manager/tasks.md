@@ -27,28 +27,28 @@
 
 - [x] 4.1 `websecure.http.tls.enabled` — already `true` by chart default; nothing to pin (verified during apply)
 - [x] 4.2 Add a Traefik `default` TLSStore in `traefik` ns referencing `wildcard-watchtoken-org-tls`
-- [ ] 4.3 Add HTTP→HTTPS redirect on `web`: `ports.web.redirections.entryPoint.to=websecure` (permanent) — **BREAKING; do at cutover with Phase 5/6**
-- [ ] 4.4 Verify a test `websecure` route serves the wildcard cert before app cutover
+- [x] 4.3 Add HTTP→HTTPS redirect — **host-scoped** `redirect-to-https` middleware (global entrypoint redirect would break `*.local`); applied to the public `*.watchtoken.org` web routes only
+- [x] 4.4 Verified `websecure` serves the wildcard cert before app cutover (openssl on :443 for all hosts)
 
 ## 5. App IngressRoute split (cv-datastar, forgejo, vaultwarden)
 
-- [ ] 5.1 Split `cv-datastar/ingressroute.yaml` → public (`websecure`, `tls: {}`, `cv.watchtoken.org`) + local (`web`, `cv.local`)
-- [ ] 5.2 Split `forgejo/ingressroute-public.yaml` → public (`websecure`, `fgit.watchtoken.org`) + local (`web`) if a local host exists; else just move public to `websecure`
-- [ ] 5.3 Split `vaultwarden/ingressroute.yaml` → public (`websecure`, `vault.watchtoken.org`) + local (`web`, `vault.local`)
-- [ ] 5.4 Update each app `kustomization.yaml` to list the new IngressRoute files
+- [x] 5.1 cv-datastar: added `ingressroute-https.yaml` (`websecure`, `cv.watchtoken.org`, `tls: {}`); `:80` route now redirects public host, keeps `cv.local` HTTP
+- [x] 5.2 forgejo: added `ingressroute-https.yaml` (`websecure`, `fgit.watchtoken.org`); `:80` public route redirects to https (no `.local` host exists)
+- [x] 5.3 vaultwarden: added `ingressroute-https.yaml` (`websecure`, `vault.watchtoken.org`); `:80` redirects public host, keeps `vault.local` HTTP
+- [x] 5.4 Updated each app `kustomization.yaml` to list the new IngressRoute files
 
-## 6. Cloudflare tunnel — Full strict (operational, outside GitOps)
+## 6. Cloudflare tunnel — HTTPS origin (operational, outside GitOps)
 
-- [ ] 6.1 Confirm current tunnel origin host (service name vs LB IP) in the Zero Trust dashboard
-- [ ] 6.2 Switch public hostname origins to `https://<traefik>:443`, set SSL mode to Full (strict)
-- [ ] 6.3 Confirm tunnel health is green after the switch
+- [x] 6.1 Confirmed tunnel origin (from cloudflared logs): all hosts → `http://traefik.traefik.svc:80`
+- [x] 6.2 Switched all 3 public hostname origins to `https://traefik.traefik.svc:443` with **No TLS Verify = ON** (dashboard Origin Server Name did not apply, and the cert is `*.watchtoken.org` vs origin host `traefik.traefik.svc` → strict verify fails). End-to-end is encrypted (Full); verification skipped — acceptable since the tunnel is already encrypted and the cloudflared→Traefik hop is intra-cluster.
+- [x] 6.3 Confirmed: `cloudflared` picked up config (version 12, `noTLSVerify:true`); no TLS errors; public 200s.
 
 ## 7. Verification
 
-- [ ] 7.1 `curl -vI https://cv.watchtoken.org` → valid LE prod cert, 200
-- [ ] 7.2 `curl -vI http://cv.watchtoken.org` → 301 redirect to https
-- [ ] 7.3 Browser → `https://vault.watchtoken.org` → trusted, web vault loads
-- [ ] 7.4 Browser → `https://fgit.watchtoken.org` → trusted, Forgejo loads
-- [ ] 7.5 LAN `curl http://cv.local` and `http://vault.local` → still 200 over HTTP
-- [ ] 7.6 `openspec validate add-public-tls-cert-manager` passes
-- [ ] 7.7 Update `AGENTS.md` (new cert-manager infra dir + TLS gotchas) if conventions changed
+- [x] 7.1 `https://cv.watchtoken.org` → 200 (and fgit, vault)
+- [x] 7.2 `http://cv.watchtoken.org` (direct :80) → 301 → https (and fgit, vault)
+- [x] 7.3 `https://vault.watchtoken.org` → 200, trusted (LE prod cert on :443)
+- [x] 7.4 `https://fgit.watchtoken.org` → 200
+- [x] 7.5 LAN `http://cv.local` and `http://vault.local` → 200 over HTTP (unchanged)
+- [x] 7.6 `openspec validate add-public-tls-cert-manager` passes
+- [x] 7.7 Update `AGENTS.md` (new cert-manager infra dir + TLS gotchas)

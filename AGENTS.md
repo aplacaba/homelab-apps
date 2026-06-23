@@ -10,8 +10,9 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Cluster** | pk3s — single-node k3s |
 | **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub |
 | **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
+| **TLS** | cert-manager + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
-| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` domains |
+| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` → Traefik `:443` (HTTPS origin, No TLS Verify) |
 | **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` storage class (k3s built-in) |
@@ -22,6 +23,7 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 ```
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
+├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site (Helm chart, OCI registry)
 ├── floci/                     # FLOCI tool (raw manifests)
@@ -139,6 +141,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `forgejo-runner` | OCI | `oci://codeberg.org/wrenix/helm-charts` | forgejo-runner |
 | `prometheus-community` | default | `https://prometheus-community.github.io/helm-charts` | monitoring |
 | `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, promtail) |
+| `jetstack` | default | `https://charts.jetstack.io` | cert-manager |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 | `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
@@ -246,6 +249,10 @@ This document is the primary guide for AI agents working in this repo — keep i
 6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
 7. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
 8. **Loki requires `auth_enabled: false` for Promtail:** The Loki chart defaults `auth_enabled: true`, which requires a tenant ID (X-Scope-OrgID) header. Promtail requests get 401 without it. For single-tenant homelabs, set `loki.auth_enabled: false` in the Loki HelmRelease values.
+9. **cert-manager CRD bootstrap is two-phase:** cert-manager's own CRDs (`ClusterIssuer`, `Certificate`) are installed by its HelmRelease, but if those CR objects sit in the *same* Flux kustomization pass, the dry-run aborts (`no matches for kind "Certificate"`) before cert-manager ever installs — deadlock. Fix: install cert-manager first (unreference the CRD-dependent objects), wait for CRDs, then re-add them. See `cert-manager/` history.
+10. **Wildcard cert is a Traefik default TLSStore (cross-ns):** The `*.watchtoken.org` `Certificate` lives in `traefik` ns and is wired to a `default` TLSStore, so any app's IngressRoute just needs `entryPoints: [websecure]` + `tls: {}` — no per-route `secretName`. `allowCrossNamespace` (already on) makes this work across namespaces.
+11. **HTTP→HTTPS redirect must be host-scoped, not global:** Do NOT use `ports.web.redirections.entryPoint` — it would redirect `*.local` (→ https, no cert/route) and break LAN access. Use the shared `redirect-to-https` Middleware (in `traefik/middlewares`) attached only to `*.watchtoken.org` routes on `web`.
+12. **Cloudflare tunnel origin = `https://traefik.traefik.svc:443` with No TLS Verify:** The cert is `*.watchtoken.org` but cloudflared connects to host `traefik.traefik.svc`, so strict verify fails (502). Each public hostname in the Zero Trust dashboard uses `https://traefik.traefik.svc:443` + **No TLS Verify ON**. The hop is still TLS-encrypted; verification is skipped (fine — tunnel is already encrypted + intra-cluster hop).
 
 ## Forgejo Runner
 

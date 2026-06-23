@@ -126,6 +126,37 @@ if the redirect is reverted.
 
 ## Open Questions
 
-- Confirm the exact Cloudflare tunnel origin value currently configured in the
-  Zero Trust dashboard (service name vs LB IP) so the Full-strict step targets
-  the right host. To be checked during apply.
+- ~~Confirm the exact Cloudflare tunnel origin value~~ — **resolved during apply:**
+  all three hosts route to `http://traefik.traefik.svc:80` (read from cloudflared
+  logs). See Implementation Outcome.
+
+## Implementation Outcome (apply)
+
+Captured deviations from the original design, discovered during apply:
+
+1. **Cloudflare tunnel: Full, not Full-strict.** The dashboard "Origin Server
+   Name" did not apply, so cloudflared validated the cert against the origin URL
+   host `traefik.traefik.svc`, which does not match `*.watchtoken.org` → 502.
+   Resolution: set **No TLS Verify = ON** for each public hostname. The
+   cloudflared→Traefik hop is still TLS-encrypted; only cert *verification* is
+   skipped. This is acceptable here because (a) the Cloudflare tunnel connection
+   is already encrypted end-to-end, and (b) the cloudflared→Traefik hop is
+   intra-cluster on a single node with no MITM surface. True Full-strict could be
+   revisited later by making the dashboard Origin Server Name stick (per-route,
+   set to the hostname).
+
+2. **HTTP→HTTPS redirect is host-scoped, not a global entrypoint redirect.** A
+   global `ports.web.redirections.entryPoint` would also redirect `*.local`
+   (→ https, which has no cert/route) and break LAN access. Instead a
+   `redirect-to-https` Middleware is attached only to the `*.watchtoken.org`
+   routes on the `web` entrypoint; `*.local` stays plain HTTP.
+
+3. **Default TLSStore (cross-namespace) validated working.** Confirmed live:
+   Traefik serves the `*.watchtoken.org` LE cert on `:443` for hosts in other
+   namespaces via the `default` TLSStore in `traefik` ns — no per-route
+   `secretName` needed.
+
+4. **Two-phase bootstrap required.** `ClusterIssuer`/`Certificate` (cert-manager
+   CRDs) and the cert-manager `HelmRelease` that installs those CRDs cannot be
+   applied in the same Flux kustomization pass (dry-run aborts). Applied in two
+   commits: install cert-manager first, then reference the CRD-dependent objects.
