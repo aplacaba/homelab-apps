@@ -33,7 +33,7 @@ cd "$REPO_ROOT/terraform"
 echo "Sealing secrets..."
 seal "tunnel-credentials" "cloudflared" "token" \
   "$(terraform output -raw tunnel_token)" \
-  "clusters/pk3s/cloudflared/sealedsecret-tunnel-token.yaml"
+  "clusters/pk3s/cloudflared/sealedsecret.yaml"
 
 seal "cloudflare-api-token" "cert-manager" "api-token" \
   "$(terraform output -raw watchtoken_api_token)" \
@@ -44,7 +44,7 @@ seal "cloudflare-alacaba-api-token" "cert-manager" "api-token" \
   "clusters/pk3s/cert-manager/sealedsecret-cloudflare-alacaba-api-token.yaml"
 
 cd "$REPO_ROOT"
-git add clusters/pk3s/cloudflared/sealedsecret-tunnel-token.yaml \
+git add clusters/pk3s/cloudflared/sealedsecret.yaml \
        clusters/pk3s/cert-manager/sealedsecret-cloudflare-api-token.yaml \
        clusters/pk3s/cert-manager/sealedsecret-cloudflare-alacaba-api-token.yaml
 
