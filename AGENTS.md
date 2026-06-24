@@ -300,6 +300,24 @@ kubectl delete secret forgejo-runner-config -n forgejo-runner
 kubectl rollout restart deploy/forgejo-runner -n forgejo-runner
 ```
 
+## Terraform Workflow
+
+Terraform config lives in `terraform/`. Run locally after `terraform apply`:
+
+```bash
+# Lint before committing
+cd terraform && make lint
+
+# Or per-file
+terraform fmt -check -diff
+
+# Install pre-commit hooks (one-time)
+make install-hooks
+```
+
+Hooks in `.githooks/pre-commit` check `terraform fmt` on staged `.tf` files.
+SealedSecrets are generated locally with `scripts/seal-and-commit.sh`.
+
 ### Shell access
 
 ```bash

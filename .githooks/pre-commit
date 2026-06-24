@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Check if any changed files are Terraform files
+CHANGED_TF=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.tf$' || true)
+
+if [ -z "$CHANGED_TF" ]; then
+  exit 0
+fi
+
+# Find the terraform directory (might be at root or nested)
+TF_DIRS=$(echo "$CHANGED_TF" | xargs -I{} dirname {} | sort -u | grep -E '^terraform' || true)
+
+for dir in $TF_DIRS; do
+  if [ -f "$dir/.." ]; then
+    continue
+  fi
+  echo "[pre-commit] Checking terraform fmt in $dir..."
+  if ! terraform fmt -check -diff "$dir" 2>/dev/null; then
+    cat >&2 <<-EOF
+Error: Terraform files in $dir are not formatted.
+Run 'terraform fmt $dir' to fix.
+EOF
+    exit 1
+  fi
+done
