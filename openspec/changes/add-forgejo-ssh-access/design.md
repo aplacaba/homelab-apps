@@ -131,8 +131,8 @@ Traefik change. No new Secret, no SealedSecret.
    becomes a NodePort at 30022 and the config keys land in `app.ini`.
 3. Edit Terraform: add the `ssh.fgit.watchtoken.org` →
    `ssh://forgejo-ssh.forgejo.svc:22` ingress entry in `terraform/tunnel.tf`
-   (before the catch-all) and the `ssh` CNAME in `terraform/dns.tf`. Run
-   `terraform fmt`, `make lint`, then `terraform plan` (expect only these two
+   (before the catch-all) and the `ssh.fgit` CNAME (→ `ssh.fgit.watchtoken.org`) in
+   `terraform/dns.tf`. Run `terraform fmt`, `make lint`, then `terraform plan` (expect only these two
    resources added) and `terraform apply`.
 4. Commit (Forgejo HelmRelease + Terraform); push. Flux reconciles the HelmRelease.
 5. **(Out-of-band, per client)** install `cloudflared`; add the SSH
