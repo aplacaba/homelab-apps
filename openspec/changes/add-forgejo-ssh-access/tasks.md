@@ -22,16 +22,16 @@
 
 ## 4. Client setup (out-of-band, per client)
 
-- [ ] 4.1 Install `cloudflared` on the client machine
-- [ ] 4.2 Add to `~/.ssh/config`: `Host ssh.watchtoken.org` / `ProxyCommand cloudflared access ssh --hostname %h`
-- [ ] 4.3 `cloudflared access login ssh.watchtoken.org` (one-time browser auth) if prompted
+- [x] 4.1 Install `cloudflared` on the client machine
+- [x] 4.2 Add to `~/.ssh/config`: `Host ssh.watchtoken.org` / `ProxyCommand cloudflared access ssh --hostname %h`
+- [x] 4.3 `cloudflared access login ssh.watchtoken.org` (one-time browser auth) if prompted
 
 ## 5. Verification
 
 - [x] 5.1 LAN: `ssh -T -p 30022 git@192.168.254.50` prints the Forgejo greeting (no shell)
 - [ ] 5.2 LAN round-trip: `git clone ssh://git@192.168.254.50:30022/<owner>/<repo>.git`, make a commit, `git push` succeeds — **needs SSH key added to Forgejo**
-- [ ] 5.3 Public: `ssh -T git@ssh.watchtoken.org` (with ProxyCommand) prints the Forgejo greeting — **needs client cloudflared**
-- [ ] 5.4 Public round-trip: clone + commit + push over `git@ssh.watchtoken.org:<owner>/<repo>.git` — **needs client cloudflared + SSH key**
+- [x] 5.3 Public: `ssh -T git@ssh.watchtoken.org` (with ProxyCommand) prints the Forgejo greeting
+- [ ] 5.4 Public round-trip: clone + commit + push over `git@ssh.watchtoken.org:<owner>/<repo>.git` — **needs SSH key set up in Forgejo for your user**
 - [x] 5.5 Forgejo UI: the SSH clone widget shows `git@ssh.watchtoken.org:<owner>/<repo>.git`
 - [x] 5.6 `terraform` state shows the `ssh` ingress entry + CNAME; HTTPS hostnames (`fgit`/`vault`/`cv`) unchanged
 - [x] 5.7 HTTPS unaffected: `https://fgit.watchtoken.org` and `forgejo.local` still load; `*.watchtoken.org` cert + traefik/cloudflared pods unchanged
