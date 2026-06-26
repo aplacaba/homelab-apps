@@ -12,11 +12,11 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
 | **TLS** | cert-manager + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
-| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org` and `cv.alacaba.org` → Traefik `:443` (HTTPS origin, No TLS Verify) |
+| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org`, `cv.alacaba.org`, and `ssh.fgit.watchtoken.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.fgit.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). |
 | **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` storage class (k3s built-in) |
-| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry |
+| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry. SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.fgit.watchtoken.org` (requires `cloudflared` ProxyCommand). |
 
 ## Directory Structure
 
@@ -208,6 +208,7 @@ recoverable after a rebuild.
 ├───────────────┼──────────────────────────────────────────────────┤
 │ forgejo       │ Git server + Actions + OCI Container Registry    │
 │               │ Service: forgejo-http:3000                       │
+│               │ Service: forgejo-ssh:22 (NodePort 30022)         │
 │               │ Registry: https://fgit.watchtoken.org/v2/        │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ ∀ apps        │ Each in its own namespace                        │
@@ -225,7 +226,10 @@ other namespaces.
 
 - **Public** (`*.watchtoken.org`): routed through Cloudflare Tunnel → Traefik
   (no TLS termination on the cluster — handled by Cloudflare edge).
+  SSH (`ssh.fgit.watchtoken.org`) routes **straight to `forgejo-ssh`** via the
+  tunnel, bypassing Traefik (raw TCP, no TLS).
 - **Internal** (`*.local`): accessed via `http://192.168.254.50:30080` on LAN.
+  SSH accessible via `ssh://git@192.168.254.50:30022`.
 
 ## Documentation Updates
 
@@ -254,6 +258,7 @@ This document is the primary guide for AI agents working in this repo — keep i
 11. **HTTP→HTTPS redirect must be host-scoped, not global:** Do NOT use `ports.web.redirections.entryPoint` — it would redirect `*.local` (→ https, no cert/route) and break LAN access. Use the shared `redirect-to-https` Middleware (in `traefik/middlewares`) attached only to `*.watchtoken.org` routes on `web`.
 12. **Cloudflare tunnel origin = `https://traefik.traefik.svc:443` with No TLS Verify:** The cert is `*.watchtoken.org` but cloudflared connects to host `traefik.traefik.svc`, so strict verify fails (502). Each public hostname in the Zero Trust dashboard uses `https://traefik.traefik.svc:443` + **No TLS Verify ON**. The hop is still TLS-encrypted; verification is skipped (fine — tunnel is already encrypted + intra-cluster hop).
 13. **Grafana admin credentials are a SealedSecret, not plaintext:** Grafana admin auth is no longer the default `admin/admin` in the HelmRelease. The password is stored in `monitoring/sealedsecret-grafana-admin.yaml` (keys `admin-user` and `admin-password`), and the HelmRelease references it via `grafana.admin.existingSecret: grafana-admin-secret`. To rotate the Grafana password, re-seal into that `SealedSecret` — do not edit the HelmRelease values directly.
+14. **cloudflared access SSH bypasses Traefik:** Public SSH (`ssh.fgit.watchtoken.org`) does NOT route through Traefik. The tunnel ingress routes directly to `forgejo-ssh.forgejo.svc:22` (raw TCP). This is configured in Terraform (`terraform/tunnel.tf`), not the dashboard. Do NOT add a Traefik TCP entryPoint for SSH — the tunnel handles it without one.
 
 ## Forgejo Runner
 
@@ -299,6 +304,42 @@ Delete the old registration secret and restart:
 kubectl delete secret forgejo-runner-config -n forgejo-runner
 kubectl rollout restart deploy/forgejo-runner -n forgejo-runner
 ```
+
+## Forgejo SSH
+
+SSH access is available two ways:
+
+| Path | Address | How |
+|---|---|---|
+| **LAN (direct)** | `ssh://git@192.168.254.50:30022` | NodePort 30022 on `forgejo-ssh` Service (in `helmrelease.yaml`) |
+| **Public (tunnel)** | `git@ssh.fgit.watchtoken.org` | Cloudflare Tunnel + client `cloudflared` ProxyCommand |
+
+The public SSH route is **Terraform-managed** (`terraform/tunnel.tf` ingress + `terraform/dns.tf` CNAME). It routes straight to `forgejo-ssh` (no Traefik). The SSH clone URL shown in the Forgejo UI is `git@ssh.fgit.watchtoken.org`.
+
+### Client setup (one-time per machine)
+
+```bash
+# 1. Install cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+# 2. Add to ~/.ssh/config:
+: '
+Host ssh.fgit.watchtoken.org
+  ProxyCommand cloudflared access ssh --hostname %h
+'
+# 3. Authenticate (browser popup)
+cloudflared access login ssh.fgit.watchtoken.org
+```
+
+### Verification
+
+```bash
+# LAN
+ssh -T -p 30022 git@192.168.254.50
+
+# Public (with ProxyCommand configured)
+ssh -T git@ssh.fgit.watchtoken.org
+```
+
+Both should print the Forgejo greeting (`Hi <user>! You've successfully authenticated...`).
 
 ## Terraform Workflow
 

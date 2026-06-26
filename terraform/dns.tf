@@ -37,6 +37,15 @@ resource "cloudflare_dns_record" "vault_watchtoken" {
   proxied = true
 }
 
+resource "cloudflare_dns_record" "ssh_watchtoken" {
+  zone_id = data.cloudflare_zone.watchtoken_org.id
+  name    = "ssh"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
+  type    = "CNAME"
+  ttl     = 1
+  proxied = true
+}
+
 resource "cloudflare_dns_record" "cv_alacaba" {
   zone_id = data.cloudflare_zone.alacaba_org.id
   name    = "cv"
