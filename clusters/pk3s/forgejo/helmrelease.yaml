@@ -26,7 +26,7 @@ spec:
         server:
           DOMAIN: fgit.watchtoken.org
           ROOT_URL: https://fgit.watchtoken.org
-          SSH_DOMAIN: ssh.fgit.watchtoken.org
+          SSH_DOMAIN: ssh.watchtoken.org
           SSH_PORT: 22
 
     ingress:

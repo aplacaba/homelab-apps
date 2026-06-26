@@ -18,35 +18,35 @@ Forgejo git-over-SSH MUST be reachable from the public internet through the
 
 #### Scenario: Public SSH clone
 - **WHEN** a client with `cloudflared` configured runs
-  `ssh -T git@ssh.fgit.watchtoken.org`
+  `ssh -T git@ssh.watchtoken.org`
 - **THEN** the connection is proxied through the tunnel to the Forgejo SSH
   service, Forgejo responds with its greeting, and a clone/push round-trips.
 
 #### Scenario: Terraform-managed route
 - **WHEN** the public route is provisioned
 - **THEN** `terraform/tunnel.tf` contains an ingress entry
-  `ssh.fgit.watchtoken.org` → `ssh://forgejo-ssh.forgejo.svc:22` (before the
+  `ssh.watchtoken.org` → `ssh://forgejo-ssh.forgejo.svc:22` (before the
   catch-all) and `terraform/dns.tf` contains a proxied `ssh` CNAME to the
   tunnel, with no Cloudflare dashboard changes required.
 
 ### Requirement: Dedicated public SSH hostname
-Public SSH MUST use a dedicated hostname (`ssh.fgit.watchtoken.org`) routed to
+Public SSH MUST use a dedicated hostname (`ssh.watchtoken.org`) routed to
   `ssh://forgejo-ssh.forgejo.svc:22`, leaving the HTTPS hostname
   (`fgit.watchtoken.org` → Traefik) untouched.
 
 #### Scenario: Independent web and SSH ingress
 - **WHEN** `fgit.watchtoken.org` is accessed over HTTPS
 - **THEN** it still routes to Traefik as before, and SSH is served only via
-  `ssh.fgit.watchtoken.org` through the tunnel.
+  `ssh.watchtoken.org` through the tunnel.
 
 ### Requirement: Correct SSH clone URL in the Forgejo UI
-Forgejo MUST advertise `ssh.fgit.watchtoken.org` as the SSH domain (default
+Forgejo MUST advertise `ssh.watchtoken.org` as the SSH domain (default
   port 22) so the clone-URL widget renders a working public SSH URL.
 
 #### Scenario: UI clone URL
 - **WHEN** viewing a repository in the Forgejo UI
 - **THEN** the SSH clone URL shown is
-  `git@ssh.fgit.watchtoken.org:<owner>/<repo>.git`.
+  `git@ssh.watchtoken.org:<owner>/<repo>.git`.
 
 ### Requirement: No impact on HTTPS or other apps
 The SSH change MUST NOT alter HTTPS access (public or `.local`), the wildcard

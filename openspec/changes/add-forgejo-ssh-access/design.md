@@ -60,7 +60,7 @@ as extra machinery for a single backend with no middlewares needed (see
 Non-Goals).
 
 ### Decision 2: Public via Cloudflare Tunnel + client `cloudflared`, managed in Terraform
-**Choice:** Add a tunnel ingress entry `ssh.fgit.watchtoken.org` →
+**Choice:** Add a tunnel ingress entry `ssh.watchtoken.org` →
 `ssh://forgejo-ssh.forgejo.svc:22` in `terraform/tunnel.tf`, and a proxied `ssh`
 CNAME in `terraform/dns.tf`; clients use an SSH `ProxyCommand` invoking
 `cloudflared access ssh`.
@@ -75,7 +75,7 @@ homelab pattern, no opened router ports. SSH traffic goes **straight to
 **Alternative considered:** open a router port to the node for plain SSH —
 rejected; it breaks the tunnel-only model the cluster was built around.
 
-### Decision 3: Dedicated subdomain `ssh.fgit.watchtoken.org`
+### Decision 3: Dedicated subdomain `ssh.watchtoken.org`
 **Choice:** Use a new, dedicated hostname for SSH rather than reusing
 `fgit.watchtoken.org`.
 **Why:** A tunnel Public Hostname maps one hostname → one origin
@@ -85,9 +85,9 @@ break web access. A dedicated hostname keeps web and SSH ingress independent.
 **Alternative considered:** share `fgit.watchtoken.org` — rejected due to the
 single-origin-per-hostname constraint above.
 
-### Decision 4: Forgejo advertises `SSH_DOMAIN=ssh.fgit.watchtoken.org`, `SSH_PORT=22`
+### Decision 4: Forgejo advertises `SSH_DOMAIN=ssh.watchtoken.org`, `SSH_PORT=22`
 **Choice:** Set these so the UI clone URL is
-`git@ssh.fgit.watchtoken.org:user/repo.git` (port 22 omitted = default).
+`git@ssh.watchtoken.org:user/repo.git` (port 22 omitted = default).
 **Why:** Forgejo renders exactly one SSH clone URL; pointing it at the public
 hostname makes remote clones correct out-of-the-box. With `cloudflared`'s
 `ProxyCommand`, the advertised port is virtual (the proxy replaces the TCP
@@ -129,15 +129,15 @@ Traefik change. No new Secret, no SealedSecret.
    `nodeport: 30022`; add `server.SSH_DOMAIN` / `SSH_PORT`.
 2. Validate the rendered chart (`helm template`) to confirm the ssh Service
    becomes a NodePort at 30022 and the config keys land in `app.ini`.
-3. Edit Terraform: add the `ssh.fgit.watchtoken.org` →
+3. Edit Terraform: add the `ssh.watchtoken.org` →
    `ssh://forgejo-ssh.forgejo.svc:22` ingress entry in `terraform/tunnel.tf`
-   (before the catch-all) and the `ssh.fgit` CNAME (→ `ssh.fgit.watchtoken.org`) in
+   (before the catch-all) and the `ssh` CNAME (→ `ssh.watchtoken.org`) in
    `terraform/dns.tf`. Run `terraform fmt`, `make lint`, then `terraform plan` (expect only these two
    resources added) and `terraform apply`.
 4. Commit (Forgejo HelmRelease + Terraform); push. Flux reconciles the HelmRelease.
 5. **(Out-of-band, per client)** install `cloudflared`; add the SSH
-   `ProxyCommand` block for `ssh.fgit.watchtoken.org`.
-6. Verify: LAN (`ssh -p 30022`) and public (`ssh git@ssh.fgit.watchtoken.org`)
+   `ProxyCommand` block for `ssh.watchtoken.org`.
+6. Verify: LAN (`ssh -p 30022`) and public (`ssh git@ssh.watchtoken.org`)
    both show the Forgejo greeting; a real clone/push round-trips.
 7. Update `AGENTS.md` with the new SOP.
 

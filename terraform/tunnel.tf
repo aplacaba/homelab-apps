@@ -37,7 +37,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
         }
       },
       {
-        hostname = "ssh.fgit.watchtoken.org"
+        hostname = "ssh.watchtoken.org"
         service  = "ssh://forgejo-ssh.forgejo.svc:22"
       },
       {

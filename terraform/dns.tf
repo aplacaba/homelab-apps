@@ -39,7 +39,7 @@ resource "cloudflare_dns_record" "vault_watchtoken" {
 
 resource "cloudflare_dns_record" "ssh_watchtoken" {
   zone_id = data.cloudflare_zone.watchtoken_org.id
-  name    = "ssh.fgit"
+  name    = "ssh"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
   type    = "CNAME"
   ttl     = 1

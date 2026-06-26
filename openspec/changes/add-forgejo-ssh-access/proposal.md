@@ -18,7 +18,7 @@ anywhere), matching how HTTPS already works.
 - **Advertise the SSH clone URL** via `gitea.config.server.SSH_DOMAIN` +
   `SSH_PORT` so the UI shows a working SSH URL.
 - **Public SSH over the Cloudflare Tunnel** using a **dedicated subdomain**
-  (`ssh.fgit.watchtoken.org`): clients run `cloudflared` as an SSH `ProxyCommand`.
+  (`ssh.watchtoken.org`): clients run `cloudflared` as an SSH `ProxyCommand`.
   This stays tunnel-only (no opened router ports), consistent with the cluster's
   existing ingress model. Unlike HTTPS hostnames (which route to Traefik), the SSH
   ingress routes the tunnel **directly to `forgejo-ssh`** — no Traefik TCP
@@ -50,17 +50,17 @@ anywhere), matching how HTTPS already works.
   `service.ssh.type: NodePort` + `nodePort: 30022`, and add
   `gitea.config.server.SSH_DOMAIN` / `SSH_PORT`.
 - **Modified:** `terraform/tunnel.tf` — add an ingress entry
-  `ssh.fgit.watchtoken.org` → `ssh://forgejo-ssh.forgejo.svc:22` (before the
+  `ssh.watchtoken.org` → `ssh://forgejo-ssh.forgejo.svc:22` (before the
   `http_status:404` catch-all). Unlike the other hostnames it does **not** route
   to `local.tunnel_service` (Traefik) and needs no `no_tls_verify` (raw TCP).
 - **Modified:** `terraform/dns.tf` — add a proxied CNAME `ssh` →
   `${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com` in the
   `watchtoken.org` zone, mirroring the existing `fgit`/`vault` records.
 - **Modified:** `AGENTS.md` — document the new NodePort, the Terraform-managed
-  tunnel/DNS for `ssh.fgit.watchtoken.org`, and the client `cloudflared` SSH
+  tunnel/DNS for `ssh.watchtoken.org`, and the client `cloudflared` SSH
   setup (operational SOP).
 - **Out-of-band (each client):** install `cloudflared`; add an SSH `ProxyCommand`
-  block for `ssh.fgit.watchtoken.org` to `~/.ssh/config`. (The tunnel itself is
+  block for `ssh.watchtoken.org` to `~/.ssh/config`. (The tunnel itself is
   already Terraform-managed; only client setup remains manual.)
 - **No impact** on cert-manager, traefik, cloudflared (pod), cv-datastar,
   monitoring, sealed-secrets, vaultwarden, forgejo-runner.
