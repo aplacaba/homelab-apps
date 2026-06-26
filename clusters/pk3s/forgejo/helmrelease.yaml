@@ -26,6 +26,8 @@ spec:
         server:
           DOMAIN: fgit.watchtoken.org
           ROOT_URL: https://fgit.watchtoken.org
+          SSH_DOMAIN: ssh.fgit.watchtoken.org
+          SSH_PORT: 22
 
     ingress:
       enabled: true
@@ -42,8 +44,9 @@ spec:
         type: ClusterIP
         port: 3000
       ssh:
-        type: ClusterIP
+        type: NodePort
         port: 22
+        nodePort: 30022
 
     persistence:
       enabled: true
