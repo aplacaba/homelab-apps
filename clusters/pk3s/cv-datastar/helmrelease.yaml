@@ -20,7 +20,9 @@ spec:
 
     image:
       repository: fgit.watchtoken.org/forgejo-admin/cv
-      tag: latest
+      # Empty tag => chart renders image:.Chart.AppVersion, so each chart
+      # version bump changes the pod template and triggers an automatic rollout.
+      tag: ""
       pullPolicy: Always
     imagePullSecrets:
       - name: forgejo-registry-auth
