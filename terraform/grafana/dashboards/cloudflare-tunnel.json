@@ -1,0 +1,88 @@
+{
+  "title": "Cloudflare Tunnel",
+  "uid": "cloudflare-tunnel",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "cloudflare", "tunnel"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active Connections",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum(cloudflared_tunnel_active_connections)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "HA Connections",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{
+        "expr": "sum(cloudflared_tunnel_ha_connections)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Total Requests",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "sum(cloudflared_requests_total)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Uniques",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "expr": "sum(cloudflared_tunnel_uniques)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Request Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "sum(rate(cloudflared_requests_total[5m]))",
+        "legendFormat": "Requests/s",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Active Connections Over Time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "cloudflared_tunnel_active_connections",
+        "legendFormat": "connections",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Reconnect Events",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "rate(cloudflared_tunnel_reconnects[5m])",
+        "legendFormat": "reconnects/s",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Tunnel Register Events",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "rate(cloudflared_tunnel_register_events[5m])",
+        "legendFormat": "register events/s",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    }
+  ]
+}

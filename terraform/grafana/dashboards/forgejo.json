@@ -1,0 +1,112 @@
+{
+  "title": "Forgejo",
+  "uid": "forgejo",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "forgejo"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "HTTP Requests/s",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(forgejo_http_responses_total[5m]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Active Actions Jobs",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "sum(forgejo_actions_running_jobs)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Open DB Connections",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "sum(forgejo_db_conn_open)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Registered Users",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "sum(forgejo_users_total)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "HTTP Requests by Status",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(forgejo_http_responses_total{code=~\"2..\"}[5m]))",
+          "legendFormat": "2xx",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(rate(forgejo_http_responses_total{code=~\"4..\"}[5m]))",
+          "legendFormat": "4xx",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(rate(forgejo_http_responses_total{code=~\"5..\"}[5m]))",
+          "legendFormat": "5xx",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Git Operations",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "sum(rate(forgejo_git_operations_total[5m])) by(operation)",
+        "legendFormat": "{{ operation }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Actions Queue Depth",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "forgejo_actions_queued_jobs",
+        "legendFormat": "queued",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "DB Connection Pool",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(forgejo_db_conn_in_use)",
+          "legendFormat": "in use",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(forgejo_db_conn_idle)",
+          "legendFormat": "idle",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(forgejo_db_conn_open)",
+          "legendFormat": "open",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "title": "Cluster Overview",
+  "uid": "cluster-overview",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "cluster"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Nodes",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_node_info)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Pods",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_pod_info)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Namespaces",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_namespace_created)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Cluster CPU",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "unit": "percent"
+    },
+    {
+      "type": "stat",
+      "title": "Cluster Memory",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{
+        "expr": "(1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)) * 100",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "unit": "percent"
+    },
+    {
+      "type": "stat",
+      "title": "PVC Count",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_persistentvolumeclaim_info)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Cluster CPU Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+        "legendFormat": "CPU %",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Cluster Memory Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "(1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)) * 100",
+        "legendFormat": "Memory %",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Network Traffic",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(node_network_receive_bytes_total{device!=\"lo\"}[5m]))",
+          "legendFormat": "Rx",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m]))",
+          "legendFormat": "Tx",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ],
+      "yaxes": [{ "format": "Bps" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Disk I/O",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(node_disk_read_bytes_total[5m]))",
+          "legendFormat": "Read",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum(rate(node_disk_written_bytes_total[5m]))",
+          "legendFormat": "Write",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ],
+      "yaxes": [{ "format": "Bps" }, {}]
+    }
+  ]
+}

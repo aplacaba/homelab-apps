@@ -7,3 +7,4 @@ resources:
   - helmrelease.yaml
   - ingressroute-public.yaml
   - ingressroute-https.yaml
+  - servicemonitor.yaml

@@ -1,0 +1,128 @@
+{
+  "title": "Nodes (Hardware)",
+  "uid": "nodes",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "nodes"],
+  "templating": {
+    "list": [{
+      "name": "node",
+      "type": "query",
+      "query": "label_values(node_boot_time_seconds, instance)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "refresh": 1,
+      "includeAll": true,
+      "multi": true
+    }]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "time() - max(node_boot_time_seconds{instance=~\"$node\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "unit": "s"
+    },
+    {
+      "type": "stat",
+      "title": "CPU Cores",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "count(node_cpu_seconds_total{instance=~\"$node\",mode=\"idle\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Memory Total",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "avg(node_memory_MemTotal_bytes{instance=~\"$node\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "unit": "bytes"
+    },
+    {
+      "type": "stat",
+      "title": "Load 1m",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "avg(node_load1{instance=~\"$node\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Load 5m",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{
+        "expr": "avg(node_load5{instance=~\"$node\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Load 15m",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{
+        "expr": "avg(node_load15{instance=~\"$node\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "CPU Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "100 - avg by(instance) (rate(node_cpu_seconds_total{instance=~\"$node\",mode=\"idle\"}[5m])) * 100",
+        "legendFormat": "{{ instance }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Memory Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "(1 - avg by(instance) (node_memory_MemAvailable_bytes{instance=~\"$node\"}) / avg by(instance) (node_memory_MemTotal_bytes{instance=~\"$node\"})) * 100",
+        "legendFormat": "{{ instance }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Disk Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "100 - avg by(instance, device) ((node_filesystem_avail_bytes{instance=~\"$node\",fstype!=\"\",mountpoint!=\"/boot\"} / node_filesystem_size_bytes{instance=~\"$node\",fstype!=\"\",mountpoint!=\"/boot\"}) * 100)",
+        "legendFormat": "{{ instance }} {{ device }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Disk I/O",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "rate(node_disk_read_bytes_total{instance=~\"$node\"}[5m])",
+        "legendFormat": "{{ instance }} read",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      },
+      {
+        "expr": "rate(node_disk_written_bytes_total{instance=~\"$node\"}[5m])",
+        "legendFormat": "{{ instance }} write",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "Bps" }, {}]
+    }
+  ]
+}

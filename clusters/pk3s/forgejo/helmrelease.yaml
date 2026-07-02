@@ -28,6 +28,8 @@ spec:
           ROOT_URL: https://fgit.watchtoken.org
           SSH_DOMAIN: ssh.watchtoken.org
           SSH_PORT: 22
+        metrics:
+          ENABLED: "true"
 
     ingress:
       enabled: true

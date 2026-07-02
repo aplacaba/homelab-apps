@@ -21,6 +21,23 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 ## Directory Structure
 
 ```
+terraform/
+├── dns.tf              # Cloudflare DNS records (Terraform)
+├── main.tf             # Cloudflare tunnel & vars
+├── providers.tf         # Cloudflare provider + S3 backend
+├── tokens.tf            # cert-manager API tokens
+├── tunnel.tf            # Cloudflare tunnel ingress config
+├── zone-settings.tf     # Zone security settings
+├── Makefile             # Lint, fmt-check, validate (both roots)
+└── grafana/             # Grafana dashboard provisioning (separate S3 state key)
+    ├── providers.tf
+    ├── variables.tf
+    ├── bootstrap.tf
+    ├── folders.tf
+    ├── dashboards.tf
+    ├── outputs.tf
+    └── dashboards/*.json
+
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
 ├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
@@ -358,6 +375,39 @@ make install-hooks
 
 Hooks in `.githooks/pre-commit` check `terraform fmt` on staged `.tf` files.
 SealedSecrets are generated locally with `scripts/seal-and-commit.sh`.
+
+### Grafana dashboards (Terraform)
+
+Grafana dashboards are **Terraform-managed** from `terraform/grafana/` (separate
+S3 state key `grafana/terraform.tfstate`, isolated from Cloudflare). Dashboards
+are authored as JSON in `terraform/grafana/dashboards/` — edit via the repo, not
+the UI; manual UI edits are reverted on the next `terraform apply`
+(`overwrite = true`).
+
+**Auth** (env-driven, nothing committed):
+- `GRAFANA_URL=http://grafana.local:30080`
+- `GRAFANA_AUTH` — first apply: `admin:<admin-password>` (read from the
+  `grafana-admin-secret` SealedSecret via a password manager). A `terraform`
+  service account + token is created and recorded in state.
+- Subsequent applies: set `GRAFANA_AUTH` to `terraform output -raw grafana_token`.
+
+**Token rotation** (if token is lost or needs cycling):
+```bash
+cd terraform/grafana
+GRAFANA_AUTH=admin:<admin-password> terraform apply -replace=grafana_service_account_token.terraform
+terraform output -raw grafana_token   # new token
+```
+
+### Metric sources for custom dashboards
+Two apps gained explicit Prometheus metric scraping to feed the custom
+dashboards:
+- **Forgejo** (`clusters/pk3s/forgejo/`): `gitea.config.metrics.ENABLED: "true"`
+  in the HelmRelease, plus a `ServiceMonitor` (`servicemonitor.yaml`) scraping
+  the http port at `/metrics`.
+- **cloudflared** (`clusters/pk3s/cloudflared/`): a dedicated `cloudflared-metrics`
+  Service (`service-metrics.yaml`, port 2000) and a matching `ServiceMonitor`
+  (`servicemonitor.yaml`). cloudflared already serves metrics on `:2000` via
+  `--metrics 0.0.0.0:2000` but was not scraped before.
 
 ### Shell access
 

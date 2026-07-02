@@ -1,0 +1,111 @@
+{
+  "title": "Storage / PVC",
+  "uid": "storage-pvc",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "storage"],
+  "templating": {
+    "list": [{
+      "name": "pvc",
+      "type": "query",
+      "query": "label_values(kube_persistentvolumeclaim_info, persistentvolumeclaim)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "refresh": 1,
+      "includeAll": true,
+      "multi": true
+    }]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Total PVCs",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_persistentvolumeclaim_info)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Total Capacity",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "sum(kube_persistentvolumeclaim_resource_requests_storage_bytes)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "unit": "bytes"
+    },
+    {
+      "type": "stat",
+      "title": "Pending PVCs",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_persistentvolumeclaim_status_phase{phase=\"Pending\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Volumes Not Bound",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "count(kube_persistentvolume_status_phase{phase!=\"Bound\"})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "table",
+      "title": "PVC Capacity & Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "kubelet_volume_stats_available_bytes{persistentvolumeclaim=~\"$pvc\"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~\"$pvc\"}",
+        "format": "table",
+        "instant": true,
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "PVC Capacity & Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by(persistentvolumeclaim, namespace) (kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~\"$pvc\"})",
+          "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }} capacity",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "sum by(persistentvolumeclaim, namespace) (kubelet_volume_stats_available_bytes{persistentvolumeclaim=~\"$pvc\"})",
+          "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }} available",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ],
+      "yaxes": [{ "format": "bytes" }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "PVC Usage %",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "(1 - kubelet_volume_stats_available_bytes{persistentvolumeclaim=~\"$pvc\"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~\"$pvc\"}) * 100",
+        "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "percent", "max": 100 }, {}]
+    },
+    {
+      "type": "graph",
+      "title": "Volume Growth (Capacity Trends)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~\"$pvc\"}[30d]",
+        "legendFormat": "{{ persistentvolumeclaim }}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "yaxes": [{ "format": "bytes" }, {}]
+    }
+  ]
+}
