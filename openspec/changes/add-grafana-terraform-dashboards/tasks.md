@@ -12,8 +12,8 @@
 
 ## 2. Verify Prometheus datasource UID + target data
 
-- [ ] 2.1 Confirm the Prometheus datasource **uid** is `prometheus` (query the Grafana API or read the sidecar-generated datasource). If it differs, make a **single declarative edit** to `clusters/pk3s/monitoring/helmrelease.yaml` (set the sidecar default uid to `prometheus`) — do **not** edit every dashboard JSON (the dashboards are committed to uid `prometheus` per design §4.1).
-- [ ] 2.2 Note the bundled Grafana version (`kubectl exec ... grafana -- grafana-cli -v` or image tag) — confirm ≥ 9 (service accounts supported).
+- [x] 2.1 Confirm the Prometheus datasource **uid** is `prometheus` (query the Grafana API or read the sidecar-generated datasource). If it differs, make a **single declarative edit** to `clusters/pk3s/monitoring/helmrelease.yaml` (set the sidecar default uid to `prometheus`) — do **not** edit every dashboard JSON (the dashboards are committed to uid `prometheus` per design §4.1).
+- [x] 2.2 Note the bundled Grafana version (`kubectl exec ... grafana -- grafana-cli -v` or image tag) — confirm ≥ 9 (service accounts supported).
 
 ## 3. Author the seven dashboards
 
@@ -31,15 +31,15 @@
 - [x] 4.1 In `clusters/pk3s/forgejo/helmrelease.yaml`, under `gitea.config`, add `metrics: { ENABLED: "true" }`.
 - [x] 4.2 Create `clusters/pk3s/forgejo/servicemonitor.yaml` (ServiceMonitor selecting `app.kubernetes.io/instance: forgejo`, endpoint `port: http`, `path: /metrics`, `interval: 30s`).
 - [x] 4.3 Add `servicemonitor.yaml` to `clusters/pk3s/forgejo/kustomization.yaml` `resources:`.
-- [ ] 4.4 Verify the http Service labels with `kubectl get svc -n forgejo --show-labels` (confirm `app.kubernetes.io/instance: forgejo` is present; tighten selector if needed).
-- [ ] 4.5 Force reconcile: `kubectl -n flux-system reconcile helmrelease forgejo`; confirm `curl http://forgejo-http.forgejo.svc:3000/metrics` returns 200 Prometheus text.
+- [x] 4.4 Verify the http Service labels with `kubectl get svc -n forgejo --show-labels` (confirm `app.kubernetes.io/instance: forgejo` is present; tighten selector if needed).
+- [x] 4.5 Force reconcile: `kubectl -n flux-system reconcile helmrelease forgejo`; confirm `curl http://forgejo-http.forgejo.svc:3000/metrics` returns 200 Prometheus text.
 
 ## 5. cloudflared metrics source
 
 - [x] 5.1 Create `clusters/pk3s/cloudflared/service-metrics.yaml`: Service `cloudflared-metrics`, `metadata.labels: { app.kubernetes.io/name: cloudflared-metrics }`, `spec.selector: { app: cloudflared }`, port `metrics`→2000.
 - [x] 5.2 Create `clusters/pk3s/cloudflared/servicemonitor.yaml`: ServiceMonitor `cloudflared`, `selector.matchLabels: { app.kubernetes.io/name: cloudflared-metrics }`, endpoint `port: metrics`, `path: /metrics`, `interval: 30s`.
 - [x] 5.3 Add both files to `clusters/pk3s/cloudflared/kustomization.yaml` `resources:`.
-- [ ] 5.4 Force reconcile (kubectl reconcile kustomization or wait), confirm `kubectl get servicemonitor -n cloudflared` and that Prometheus targets show cloudflared up.
+- [x] 5.4 Force reconcile (kubectl reconcile kustomization or wait), confirm `kubectl get servicemonitor -n cloudflared` and that Prometheus targets show cloudflared up.
 
 ## 6. Repo wiring
 
@@ -48,18 +48,18 @@
 
 ## 7. First apply (operator, out-of-band)
 
-- [ ] 7.1 Set env: `GRAFANA_URL=http://grafana.local:30080` and `GRAFANA_AUTH=admin:<admin-password>` (password from password manager / `grafana-admin-secret` SealedSecret decrypt).
-- [ ] 7.2 `cd terraform/grafana && terraform init` (real S3 backend) && `terraform plan` — confirm plan creates the SA, token, folder, and 7 dashboards, nothing else.
-- [ ] 7.3 `terraform apply`; capture `terraform output -raw grafana_token`; set `GRAFANA_AUTH` to it for future runs.
-- [ ] 7.4 With `GRAFANA_AUTH` now set to the token, run `terraform plan` again — it should report **no changes** (proves subsequent applies authenticate as the `terraform` SA, satisfying the "Subsequent applies use the token" scenario).
-- [ ] 7.5 In Grafana UI confirm the **Homelab** folder holds the 7 dashboards.
+- [x] 7.1 Set env: `GRAFANA_URL=http://grafana.local:30080` and `GRAFANA_AUTH=admin:<admin-password>` (password from password manager / `grafana-admin-secret` SealedSecret decrypt).
+- [x] 7.2 `cd terraform/grafana && terraform init` (real S3 backend) && `terraform plan` — confirm plan creates the SA, token, folder, and 7 dashboards, nothing else.
+- [x] 7.3 `terraform apply`; capture `terraform output -raw grafana_token`; set `GRAFANA_AUTH` to it for future runs.
+- [x] 7.4 With `GRAFANA_AUTH` now set to the token, run `terraform plan` again — it should report **no changes** (proves subsequent applies authenticate as the `terraform` SA, satisfying the "Subsequent applies use the token" scenario).
+- [x] 7.5 In Grafana UI confirm the **Homelab** folder holds the 7 dashboards.
 
 ## 8. Verify dashboards have data
 
-- [ ] 8.1 Open each dashboard; the 5 with existing sources (cluster-overview, nodes, pods-workloads, traefik, storage-pvc) show data immediately.
-- [ ] 8.2 After Forgejo metrics settle (~1 min), `forgejo.json` shows `forgejo_*` data.
-- [ ] 8.3 After cloudflared scrape settles, `cloudflare-tunnel.json` shows `cloudflared_*` data.
-- [ ] 8.4 Edit one dashboard in the UI, re-run `terraform apply`, confirm it reverts to the repo version.
+- [x] 8.1 Open each dashboard; the 5 with existing sources (cluster-overview, nodes, pods-workloads, traefik, storage-pvc) show data immediately.
+- [x] 8.2 After Forgejo metrics settle (~1 min), `forgejo.json` shows `forgejo_*` data.
+- [x] 8.3 After cloudflared scrape settles, `cloudflare-tunnel.json` shows `cloudflared_*` data.
+- [x] 8.4 Edit one dashboard in the UI, re-run `terraform apply`, confirm it reverts to the repo version.
 
 ## 9. Documentation
 
