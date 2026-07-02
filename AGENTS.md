@@ -29,7 +29,7 @@ terraform/
 ├── tunnel.tf            # Cloudflare tunnel ingress config
 ├── zone-settings.tf     # Zone security settings
 ├── Makefile             # Lint, fmt-check, validate (both roots)
-└── grafana/             # Grafana dashboard provisioning (separate S3 state key)
+└── grafana/             # Grafana dashboard provisioning (local state)
     ├── providers.tf
     ├── variables.tf
     ├── bootstrap.tf
@@ -378,9 +378,9 @@ SealedSecrets are generated locally with `scripts/seal-and-commit.sh`.
 
 ### Grafana dashboards (Terraform)
 
-Grafana dashboards are **Terraform-managed** from `terraform/grafana/` (separate
-S3 state key `grafana/terraform.tfstate`, isolated from Cloudflare). Dashboards
-are authored as JSON in `terraform/grafana/dashboards/` — edit via the repo, not
+Grafana dashboards are **Terraform-managed** from `terraform/grafana/` (local
+state in `terraform/grafana/terraform.tfstate`, not in S3). Dashboards are
+authored as JSON in `terraform/grafana/dashboards/` — edit via the repo, not
 the UI; manual UI edits are reverted on the next `terraform apply`
 (`overwrite = true`).
 

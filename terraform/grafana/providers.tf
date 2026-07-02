@@ -6,16 +6,6 @@ terraform {
       version = "~> 3.0"
     }
   }
-  backend "s3" {
-    bucket                      = "homelab-tfstate"
-    key                         = "grafana/terraform.tfstate"
-    region                      = "auto"
-    use_path_style              = true
-    skip_credentials_validation = true
-    skip_region_validation      = true
-    skip_requesting_account_id  = true
-    skip_s3_checksum            = true
-  }
 }
 
 provider "grafana" {
