@@ -8,3 +8,7 @@
 
 # Git worktrees
 .worktrees/
+
+# Local workflow scratch (not part of the deployed cluster)
+openspec/
+docs/superpowers/
