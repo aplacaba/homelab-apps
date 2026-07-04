@@ -120,7 +120,7 @@ matching the existing dashboard style (`schemaVersion: 40`, `refresh: 30s`,
 `time: now-6h → now`, `timezone: browser`):
 
 - **Row 1 — stat:** Reconciliations/s, Reconcile errors/s, Active workers,
-  Success ratio.
+  Reconcile health.
 - **Row 2 — time series:** Reconcile rate by `result`, Errors over time by
   `controller`.
 - **Row 3 — per-resource:** Top-8 resources by 1h reconcile count, Reconcile
@@ -130,11 +130,12 @@ Key PromQL (final queries; verified against the metrics present at explore):
 - Reconciliations/s: `sum(rate(controller_runtime_reconcile_total[5m]))`
 - Errors/s: `sum(rate(controller_runtime_reconcile_errors_total[5m]))`
 - Active workers: `sum(controller_runtime_active_workers)`
-- Success ratio:
-  `sum(rate(controller_runtime_reconcile_total{result="success"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9)`
-  (`clamp_min` with a tiny epsilon avoids div-by-zero on idle clusters without
-  distorting the ratio — rates are per-second and usually ≪ 1, so a clamp of `1`
-  would always activate and turn the ratio into a raw rate).
+- Reconcile health (non-error reconcile ratio; Flux's `result` is almost always
+  `requeue_after` for periodic reconciles, so a naive `success/total` reads ~0 —
+  see Risks below):
+  `1 - (sum(rate(controller_runtime_reconcile_total{result="error"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9))`
+  (`clamp_min` with a tiny epsilon avoids div-by-zero on idle clusters; reads
+  ~1.0 healthy, drops toward 0 as errors spike).
 - Rate by result:
   `sum(rate(controller_runtime_reconcile_total[5m])) by (result)`
 - Errors over time:
@@ -168,6 +169,12 @@ rejected; the grafana module exists precisely to hold all homelab dashboards.
 - **[Series cardinality]** `gotk_reconcile_duration_seconds_bucket` has
   per-resource labels; on a homelab (~10 Flux resources) this is trivial. No
   relabelling needed.
+- **[Flux `result` label skew]** Flux controllers reconcile on an interval, so
+  `controller_runtime_reconcile_total{result}` is dominated by `requeue_after`
+  (the healthy periodic outcome); `result="success"` only fires for one-shot
+  reconciles and is near-zero. The health panel therefore uses non-error ratio
+  (`1 - error/total`), not `success/total`. Verified against live data
+  (post-deploy): `requeue_after`≈38k, `error`≈0.1k, `success`≈tens.
 - **[Prometheus datasource uid]** pinned as `prometheus`; if a future kps upgrade
   changes the generated uid, the panel shows "no data" → consistent with every
   existing dashboard (same assumption); not specific to this change.

@@ -37,10 +37,10 @@
     },
     {
       "type": "stat",
-      "title": "Reconcile Success Ratio",
+      "title": "Reconcile Health",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "targets": [{
-        "expr": "sum(rate(controller_runtime_reconcile_total{result=\"success\"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9)",
+        "expr": "1 - (sum(rate(controller_runtime_reconcile_total{result=\"error\"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9))",
         "datasource": { "type": "prometheus", "uid": "prometheus" }
       }]
     },

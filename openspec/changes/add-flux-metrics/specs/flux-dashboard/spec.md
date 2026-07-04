@@ -33,7 +33,8 @@ The Flux dashboard MUST render reconcile health across all four Flux controllers
 #### Scenario: Overview stat row
 - **WHEN** the dashboard is opened
 - **THEN** a stat row shows: total reconciliations/s, reconcile errors/s, active
-  workers, and reconcile success ratio, all computed from
+  workers, and reconcile health (the non-error reconcile ratio, `1 -
+  error/total`, reading ~1.0 when healthy), all computed from
   `controller_runtime_*` series.
 
 #### Scenario: Time-series row

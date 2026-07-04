@@ -81,3 +81,30 @@
 
 ### 🔴 Outstanding
  - none
+
+## design UNFREEZE — 2026-07-04 (post-deploy verification)
+### 🔴 Reason
+ - Verification (Prometheus query of live data) revealed the "Reconcile Success
+   Ratio" panel reads ~0 permanently: Flux's `controller_runtime_reconcile_total`
+   is dominated by `result="requeue_after"` (38120) with `result="success"`
+   near-absent (26). The panel `success/total` is therefore non-informative.
+ - Decision-level change (panel semantics + PromQL) → unfreeze design.md and all
+   downstream artifacts (flux-dashboard spec, tasks.md). flux-metrics spec and
+   proposal.md are unaffected.
+### 🟢 Approved fix (user-approved)
+ - Rename panel "Reconcile Success Ratio" → "Reconcile Health".
+ - Query: `1 - (sum(rate(controller_runtime_reconcile_total{result="error"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9))`
+   — reads ~1.0 healthy, drops toward 0 as errors spike.
+
+## design Round 2 (post-unfreeze) — 2026-07-04
+### 🔴 Fixed
+ - **Internal consistency (all 3 unfrozen files):** the panel name "Reconcile health" and the non-error-ratio query are identical across design.md (Decision 6 Row 1 line 123 + PromQL bullet lines 133–138), `specs/flux-dashboard/spec.md` (Requirement body line 28 + "Overview stat row" scenario lines 35–38), and `tasks.md` task 3.2 (lines 47–49). Grep across the change dir confirms NO leftover "success ratio" panel name or `result="success"` health query in any of the three files — the sole `result="success"` hit in design.md (line 174) is the *intentional* explanation inside the [Flux `result` label skew] Risk bullet, and the `result ∈ {success,...}` enumeration at line 39 documents label cardinality (unchanged from Round 1, still accurate). The frozen proposal.md's "reconcile success ratio" summary is intentionally left per instructions.
+ - **PromQL correctness:** `1 - (sum(rate(controller_runtime_reconcile_total{result="error"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9))` is mathematically sound — numerator is the per-second error rate summed across controllers, denominator is the per-second total rate (all results) clamped at 1e-9 to guard div-by-zero on an idle cluster without distorting the ratio (rates are ≪ 1/s, so the Round-1 epsilon fix is preserved). Reads exactly 1.0 when error rate is 0 (verified live), monotonically toward 0 as errors dominate. Unchanged panels remain correct: `histogram_quantile(0.95, sum(rate(gotk_reconcile_duration_seconds_bucket[5m])) by (le, controller))` keeps `le` in the `by` clause ✓; `topk(8, sum(increase(gotk_reconcile_duration_seconds_count[1h])) by (kind, name, namespace))` valid ✓.
+ - **Risk bullet accuracy:** [Flux `result` label skew] (design.md lines 172–177) correctly attributes the failure mode — interval-driven reconciles dominate `requeue_after` while `success` is near-zero — and quotes live counts (`requeue_after`≈38k, `error`≈0.1k, `success`≈tens) that match the grounding (38120 / 111 / 26) within rounding. The remediation (use `1 - error/total`, not `success/total`) follows directly.
+ - **No scope creep:** diff is confined to the one health panel (name + query) and its explanatory Risk bullet. The other 7 panels, all 4 PodMonitors, the terraform/dashboards.tf edit, the AGENTS.md tasks, and the migration plan are byte-identical to Round 1.
+ - **Consistency with frozen artifacts:** no contradiction with proposal.md (its "success ratio" phrasing is frozen and explicitly out-of-scope per instructions) or `specs/flux-metrics/spec.md` (which concerns scraping only and names no panels).
+ - **No placeholders / TODO / ambiguity** introduced in any of the three files.
+### 🟡 Addressed
+ - none
+### 🔴 Outstanding
+ - none

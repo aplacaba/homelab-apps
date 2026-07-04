@@ -44,9 +44,9 @@
 - [x] 3.2 Row 1 — four `stat` panels (4×4 grid): Reconciliations/s
       (`sum(rate(controller_runtime_reconcile_total[5m]))`); Reconcile errors/s
       (`sum(rate(controller_runtime_reconcile_errors_total[5m]))`); Active
-      workers (`sum(controller_runtime_active_workers)`); Success ratio
-      (`sum(rate(controller_runtime_reconcile_total{result="success"}[5m])) /
-      clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9)`)
+      workers (`sum(controller_runtime_active_workers)`); Reconcile health
+      (`1 - (sum(rate(controller_runtime_reconcile_total{result="error"}[5m])) /
+      clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9))`)
 - [x] 3.3 Row 2 — two `graph` panels: Reconcile rate by `result`
       (`sum(rate(controller_runtime_reconcile_total[5m])) by (result)` with
       `legendFormat: "{{result}}"`); Errors over time by controller
