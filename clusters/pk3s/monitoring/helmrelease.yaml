@@ -68,6 +68,7 @@ spec:
     alertmanager:
       enabled: true
       alertmanagerSpec:
+        configSecret: alertmanager-config
         replicas: 1
         resources:
           requests:

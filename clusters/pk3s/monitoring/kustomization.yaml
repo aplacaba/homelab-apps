@@ -6,6 +6,8 @@ resources:
   - helmrepository.yaml
   - helmrepository-loki.yaml
   - sealedsecret-grafana-admin.yaml
+  - sealedsecret-alertmanager-config.yaml
+  - prometheusrule-flux.yaml
   - helmrelease.yaml
   - helmrelease-loki.yaml
   - helmrelease-promtail.yaml
