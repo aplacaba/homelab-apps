@@ -1,0 +1,88 @@
+{
+  "title": "Flux GitOps",
+  "uid": "flux",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["homelab", "flux"],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Reconciliations/s",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(controller_runtime_reconcile_total[5m]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Reconcile Errors/s",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(controller_runtime_reconcile_errors_total[5m]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Active Workers",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "sum(controller_runtime_active_workers)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Reconcile Success Ratio",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{
+        "expr": "sum(rate(controller_runtime_reconcile_total{result=\"success\"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total[5m])), 1e-9)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Reconcile Rate by Result",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "sum(rate(controller_runtime_reconcile_total[5m])) by (result)",
+        "legendFormat": "{{result}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Reconcile Errors Over Time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "sum(rate(controller_runtime_reconcile_errors_total[5m])) by (controller)",
+        "legendFormat": "{{controller}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Top Resources by Reconcile Count (1h)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "topk(8, sum(increase(gotk_reconcile_duration_seconds_count[1h])) by (kind, name, namespace))",
+        "legendFormat": "{{kind}}/{{name}} ({{namespace}})",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Reconcile Duration p95 by Controller",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(gotk_reconcile_duration_seconds_bucket[5m])) by (le, controller))",
+        "legendFormat": "{{controller}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    }
+  ]
+}

@@ -45,6 +45,7 @@ clusters/pk3s/
 ├── cv-datastar/               # CV site — served at cv.alacaba.org (Helm chart, OCI registry)
 ├── floci/                     # FLOCI tool (raw manifests)
 ├── flux-dashboard/            # Flux web UI (raw manifests)
+├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana (Helm charts)
@@ -399,8 +400,8 @@ terraform output -raw grafana_token   # new token
 ```
 
 ### Metric sources for custom dashboards
-Two apps gained explicit Prometheus metric scraping to feed the custom
-dashboards:
+Several apps/components have explicit Prometheus metric scraping to feed the
+custom dashboards:
 - **Forgejo** (`clusters/pk3s/forgejo/`): `gitea.config.metrics.ENABLED: "true"`
   in the HelmRelease, plus a `ServiceMonitor` (`servicemonitor.yaml`) scraping
   the http port at `/metrics`.
@@ -408,6 +409,15 @@ dashboards:
   Service (`service-metrics.yaml`, port 2000) and a matching `ServiceMonitor`
   (`servicemonitor.yaml`). cloudflared already serves metrics on `:2000` via
   `--metrics 0.0.0.0:2000` but was not scraped before.
+- **Flux controllers** (`clusters/pk3s/flux-monitoring/`): four `PodMonitor`s
+  (one per controller — source, kustomize, helm, notification) scrape the
+  `http-prom` port (8080) at `/metrics`. Uses `PodMonitor` rather than
+  `ServiceMonitor` because the flux-system Services are operator-owned
+  (`ssa: Ignore`) and only expose port 80→9090, not the metrics port 8080.
+  Feeds the **Flux GitOps** dashboard (reconcile rate, errors, duration,
+  per-resource churn). Prometheus discovers them via the existing
+  `podMonitorSelectorNilUsesHelmValues: false` — no monitoring HelmRelease
+  change.
 
 ### Shell access
 

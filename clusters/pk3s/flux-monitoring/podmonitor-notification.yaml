@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: notification-controller
+  namespace: flux-system
+spec:
+  selector:
+    matchLabels:
+      app: notification-controller
+  podMetricsEndpoints:
+    - port: http-prom
+      path: /metrics
+      interval: 30s

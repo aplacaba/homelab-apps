@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: helm-controller
+  namespace: flux-system
+spec:
+  selector:
+    matchLabels:
+      app: helm-controller
+  podMetricsEndpoints:
+    - port: http-prom
+      path: /metrics
+      interval: 30s

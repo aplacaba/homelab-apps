@@ -7,6 +7,7 @@ locals {
     "forgejo",
     "storage-pvc",
     "cloudflare-tunnel",
+    "flux",
   ])
 }
 

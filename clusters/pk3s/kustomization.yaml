@@ -8,6 +8,7 @@ resources:
   - cv-datastar
   - floci
   - flux-dashboard
+  - flux-monitoring
   - forgejo
   - forgejo-runner
   - monitoring
