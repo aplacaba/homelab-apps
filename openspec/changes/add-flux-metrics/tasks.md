@@ -24,12 +24,12 @@
 
 ## 2. Flux reconciles the PodMonitors
 
-- [ ] 2.1 Commit the new directory + root kustomization edit; push
-- [ ] 2.2 Force reconcile: `kubectl -n flux-system reconcile kustomization pk3s`
+- [x] 2.1 Commit the new directory + root kustomization edit; push
+- [x] 2.2 Force reconcile: `kubectl -n flux-system reconcile kustomization pk3s`
       (or wait for the 1h interval)
-- [ ] 2.3 Confirm `kubectl get podmonitor -n flux-system` lists all four with no
+- [x] 2.3 Confirm `kubectl get podmonitor -n flux-system` lists all four with no
       errors
-- [ ] 2.4 In the Prometheus UI (Status → Targets), or via
+- [x] 2.4 In the Prometheus UI (Status → Targets), or via
       `kubectl -n monitoring exec <prometheus-pod> -- wget -qO-
       http://localhost:9090/api/v1/targets` (find the pod name with `kubectl get
       pods -n monitoring`; kps runs Prometheus as a StatefulSet, not a
@@ -69,20 +69,20 @@
       `terraform/grafana/dashboards.tf` (keep the list alphabetical)
 - [x] 4.2 `cd terraform/grafana && terraform fmt -check -diff` (pre-commit hook
       also enforces this)
-- [ ] 4.3 With `GRAFANA_AUTH` set per the existing SOP, `terraform plan` — expect
+- [x] 4.3 With `GRAFANA_AUTH` set per the existing SOP, `terraform plan` — expect
       exactly one addition (`grafana_dashboard.this["flux"]`) and the existing
       seven dashboards unchanged; resolve any unexpected change before proceeding
-- [ ] 4.4 `terraform apply` (confirm the add)
-- [ ] 4.5 `terraform output -raw grafana_token` still works (provider auth intact)
+- [x] 4.4 `terraform apply` (confirm the add)
+- [x] 4.5 `terraform output -raw grafana_token` still works (provider auth intact)
 
 ## 5. Dashboard verification in Grafana
 
-- [ ] 5.1 Open Grafana → Homelab folder → **Flux GitOps** dashboard
-- [ ] 5.2 Confirm all eight panels render real data (not "no data")
-- [ ] 5.3 Sanity-check a known value: the Top-resources panel lists
+- [x] 5.1 Open Grafana → Homelab folder → **Flux GitOps** dashboard
+- [x] 5.2 Confirm all eight panels render real data (not "no data")
+- [x] 5.3 Sanity-check a known value: the Top-resources panel lists
       `Kustomization/flux-system` and the cluster's `HelmRelease`s (forgejo,
       kube-prometheus-stack, etc.)
-- [ ] 5.4 Temporarily edit a panel title in the Grafana UI, re-run
+- [x] 5.4 Temporarily edit a panel title in the Grafana UI, re-run
       `terraform apply`, confirm it reverts (UI drift reverted = `overwrite = true`
       works for this dashboard)
 
@@ -101,6 +101,6 @@
 - [x] 7.1 `openspec validate add-flux-metrics` passes
 - [x] 7.2 Run `make lint` (or `terraform fmt -check -diff` in both terraform
       roots) and the k8s YAML is well-formed
-- [ ] 7.3 Mark all tasks complete in `tasks.md`
+- [x] 7.3 Mark all tasks complete in `tasks.md`
 - [ ] 7.4 Archive the change (`/opsx-archive add-flux-metrics`) after final
       review
