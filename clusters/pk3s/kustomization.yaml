@@ -12,6 +12,7 @@ resources:
   - forgejo
   - forgejo-runner
   - monitoring
+  - paperless-ngx
   - sealed-secrets
   - traefik
   - vaultwarden

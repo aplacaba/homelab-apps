@@ -48,7 +48,8 @@ clusters/pk3s/
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)
 ├── forgejo-runner/            # CI runner (Helm chart)
-├── monitoring/                # Prometheus + Loki + Grafana (Helm charts)
+├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
+├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (Helm chart)
 └── vaultwarden/               # Password manager (Helm chart, community repo)
@@ -277,6 +278,10 @@ This document is the primary guide for AI agents working in this repo — keep i
 12. **Cloudflare tunnel origin = `https://traefik.traefik.svc:443` with No TLS Verify:** The cert is `*.watchtoken.org` but cloudflared connects to host `traefik.traefik.svc`, so strict verify fails (502). Each public hostname in the Zero Trust dashboard uses `https://traefik.traefik.svc:443` + **No TLS Verify ON**. The hop is still TLS-encrypted; verification is skipped (fine — tunnel is already encrypted + intra-cluster hop).
 13. **Grafana admin credentials are a SealedSecret, not plaintext:** Grafana admin auth is no longer the default `admin/admin` in the HelmRelease. The password is stored in `monitoring/sealedsecret-grafana-admin.yaml` (keys `admin-user` and `admin-password`), and the HelmRelease references it via `grafana.admin.existingSecret: grafana-admin-secret`. To rotate the Grafana password, re-seal into that `SealedSecret` — do not edit the HelmRelease values directly.
 14. **cloudflared access SSH bypasses Traefik:** Public SSH (`ssh.watchtoken.org`) does NOT route through Traefik. The tunnel ingress routes directly to `forgejo-ssh.forgejo.svc:22` (raw TCP). This is configured in Terraform (`terraform/tunnel.tf`), not the dashboard. Do NOT add a Traefik TCP entryPoint for SSH — the tunnel handles it without one.
+15. **Alertmanager configSecret propagation takes ~1 minute:** The Prometheus Operator watches the `alertmanager-config` Secret. When updated (via SealedSecret re-seal), the operator reads it, generates a new intermediate secret, and the Alertmanager config-reloader picks it up within ~1 minute. No pod restart needed — the StatefulSet config-volume is not updated, but the generated config file in `/etc/alertmanager/config_out/` is refreshed automatically.
+16. **paperless-ngx requires Redis:** paperless-ngx depends on Redis as a Celery message broker for task processing (OCR, classification, indexing). Without Redis it will not start. The Redis Deployment runs ephemeral (no PVC) — it is a transient broker, so losing it loses only in-flight tasks, never documents. Redis is reachable only intra-namespace (`paperless-ngx-redis:6379`, no password).
+17. **paperless-ngx uid 1000 vs `local-path` ownership:** The `paperless-ngx` image runs as uid 1000 and needs write access to the data PVC. The Deployment includes `securityContext.fsGroup: 1000`; if `local-path` does not honor it and the pod crashes with permission errors, add a root `initContainer` that `chown`-s the `/data` mount.
+18. **paperless-ngx single-PVC with directory relocation:** paperless-ngx uses one PVC (`paperless-ngx-data`, `/data`) and relocates its data/media/consume directories under it via `PAPERLESS_DATA_DIR=/data/data`, `PAPERLESS_MEDIA_ROOT=/data/media`, `PAPERLESS_CONSUMPTION_DIR=/data/consume`. This keeps backup simple (one target). `local-path` default reclaim policy is `Delete` — if the app is removed from the kustomization, Flux prunes the PVC and all documents are lost. Back up `/data` out of band if it becomes important.
 
 ## Forgejo Runner
 
@@ -418,6 +423,103 @@ custom dashboards:
   per-resource churn). Prometheus discovers them via the existing
   `podMonitorSelectorNilUsesHelmValues: false` — no monitoring HelmRelease
   change.
+
+## Flux Telegram Alerts
+
+Flux reconciliation failures are proactively alerted via Telegram. When a
+Kustomization, HelmRelease, or Source (GitRepository/HelmRepository/OCIRepository/Bucket)
+fails for 5+ minutes, Prometheus fires an alert → Alertmanager → Telegram.
+
+```
+Flux controllers  →  PrometheusRule (flux-alerts)  →  Alertmanager  →  Telegram API
+    (metrics)           (eval every 30s, 5m for)       (config from       (bot)
+                                                        SealedSecret)
+```
+
+### Alert rules (3)
+
+| Rule | Metric | For |
+|---|---|---|
+| `KustomizationFailed` | `gotk_reconcile_condition{status="False", kind="Kustomization"}` | 5m |
+| `HelmReleaseFailed` | `gotk_reconcile_condition{status="False", kind="HelmRelease"}` | 5m |
+| `SourceFailed` | `gotk_reconcile_condition{status="False", kind=~"GitRepository\|HelmRepository\|OCIRepository\|Bucket"}` | 5m |
+
+### Routing behavior
+
+- Alerts grouped by `alertname` + `namespace` (one Telegram message per alert type)
+- First alert sent immediately (10s `group_wait`)
+- New alerts in same group wait 5 min before sending
+- Repeat every 4 hours while unresolved
+
+### Rotating Telegram credentials
+
+```bash
+cd ~/Projects/homelab-apps
+printf 'bot_token: '; IFS= read -rs BOT; echo
+printf 'chat_id: '; IFS= read -rs CID; echo
+cat <<SEOF | kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets --format yaml --namespace monitoring > clusters/pk3s/monitoring/sealedsecret-alertmanager-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+type: Opaque
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: 'telegram'
+    receivers:
+      - name: 'telegram'
+        telegram_configs:
+          - bot_token: '$BOT'
+            chat_id: $CID
+            parse_mode: 'HTML'
+SEOF
+unset BOT CID
+```
+
+Then commit and push. Flux syncs automatically; the Prometheus Operator detects
+the updated secret and reloads Alertmanager within ~1 minute (no pod restart needed).
+
+### Adding new receivers
+
+To add a notification channel (e.g., email, Slack) alongside Telegram:
+
+1. Add a second receiver to `receivers:` in the `alertmanager.yaml` config above.
+2. Optionally create a route for specific alerts. The default route (matches all)
+   sends to `telegram` — additional routes must match specific matchers.
+3. Re-seal and commit the updated config.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `monitoring/prometheusrule-flux.yaml` | PrometheusRule with 3 Flux alert rules |
+| `monitoring/sealedsecret-alertmanager-config.yaml` | Alertmanager config (Telegram credentials sealed) |
+| `monitoring/helmrelease.yaml` | References `configSecret: alertmanager-config` |
+
+### Verification
+
+```bash
+# Prometheus rules exist
+kubectl get prometheusrule -n monitoring flux-alerts -o yaml
+
+# Alertmanager has Telegram config
+kubectl get secret -n monitoring alertmanager-config -o jsonpath='{.data.alertmanager\.yaml}' | base64 -d | head -15
+
+# Alertmanager actively using it
+kubectl exec -n monitoring alertmanager-prometheus-alertmanager-0 -c config-reloader \
+  -- cat /etc/alertmanager/config_out/alertmanager.env.yaml
+
+# Rules firing? (port-forward prometheus-prometheus-prometheus-0:9090)
+curl -s http://127.0.0.1:9090/api/v1/rules | jq '.data.groups[] | select(.name=="flux")'
+```
 
 ### Shell access
 
