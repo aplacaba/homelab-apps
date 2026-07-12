@@ -78,8 +78,6 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: false
-            runAsNonRoot: true
-            runAsUser: 1000
       volumes:
         - name: data
           persistentVolumeClaim:
