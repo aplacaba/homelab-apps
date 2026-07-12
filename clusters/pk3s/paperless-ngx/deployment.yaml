@@ -74,9 +74,6 @@ spec:
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
             readOnlyRootFilesystem: false
       volumes:
         - name: data
