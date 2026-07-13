@@ -13,6 +13,7 @@ resources:
   - forgejo-runner
   - monitoring
   - paperless-ngx
+  - pdf-unlocker
   - sealed-secrets
   - traefik
   - vaultwarden

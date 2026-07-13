@@ -50,6 +50,7 @@ clusters/pk3s/
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
+├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (Helm chart)
 └── vaultwarden/               # Password manager (Helm chart, community repo)
@@ -164,6 +165,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 | `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
+| `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
 
 ## Secret Management (SealedSecrets)
 
