@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: paperless-pdf-unlocker
-      version: "*"
+      version: "0.1.x"
       sourceRef:
         kind: HelmRepository
         name: ghcr-aplacaba
@@ -23,7 +23,7 @@ spec:
         memory: 64Mi
       limits:
         cpu: 100m
-        memory: 128Mi
+        memory: 256Mi
   valuesFrom:
     - kind: Secret
       name: paperless-pdf-unlocker-values
