@@ -1,0 +1,109 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: nextcloud
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: nextcloud
+        namespace: flux-system
+  values:
+    image:
+      flavor: apache
+
+    nextcloud:
+      host: sync.watchtoken.org
+      username: admin
+      existingSecret:
+        enabled: true
+        secretName: nextcloud-admin
+        usernameKey: nextcloud-username
+        passwordKey: nextcloud-password
+        smtpUsernameKey: smtp-username
+        smtpPasswordKey: smtp-password
+      trustedDomains:
+        - sync.watchtoken.org
+        - sync.local
+      mail:
+        enabled: true
+        fromAddress: alacaba
+        domain: fastmail.com
+        smtp:
+          host: smtp.fastmail.com
+          secure: ssl
+          port: 465
+          authtype: LOGIN
+
+    phpClientHttpsFix:
+      enabled: true
+      protocol: https
+
+    internalDatabase:
+      enabled: false
+
+    externalDatabase:
+      enabled: true
+      type: mysql
+      host: nextcloud-mariadb
+      database: nextcloud
+      user: nextcloud
+      password: nextcloud
+
+    mariadb:
+      enabled: true
+      auth:
+        database: nextcloud
+        username: nextcloud
+        password: nextcloud
+      primary:
+        persistence:
+          enabled: true
+          storageClass: local-path
+          accessMode: ReadWriteOnce
+          size: 8Gi
+
+    redis:
+      enabled: true
+      auth:
+        enabled: false
+      master:
+        persistence:
+          enabled: true
+          storageClass: local-path
+          size: 5Gi
+      replica:
+        persistence:
+          enabled: false
+
+    ingress:
+      enabled: false
+
+    cronjob:
+      enabled: true
+      type: sidecar
+
+    persistence:
+      enabled: true
+      annotations:
+        helm.sh/resource-policy: keep
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 100Gi
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+    service:
+      type: ClusterIP
+      port: 8080
