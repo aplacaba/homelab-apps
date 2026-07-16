@@ -41,6 +41,13 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
         service  = "ssh://forgejo-ssh.forgejo.svc:22"
       },
       {
+        hostname = "sync.watchtoken.org"
+        service  = local.tunnel_service
+        origin_request = {
+          no_tls_verify = true
+        }
+      },
+      {
         service = "http_status:404"
       }
     ]
