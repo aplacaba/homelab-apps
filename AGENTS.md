@@ -49,6 +49,7 @@ clusters/pk3s/
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
+├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
@@ -165,6 +166,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 | `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
+| `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
 | `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
 
 ## Secret Management (SealedSecrets)
@@ -232,6 +234,10 @@ recoverable after a rebuild.
 │               │ Service: forgejo-ssh:22 (NodePort 30022)         │
 │               │ Registry: https://fgit.watchtoken.org/v2/        │
 ├───────────────┼──────────────────────────────────────────────────┤
+│ monitoring    │ Prometheus, Loki, Grafana, Flux alerting         │
+├───────────────┼──────────────────────────────────────────────────┤
+│ nextcloud     │ File sync, MariaDB, Redis (100Gi PVC)              │
+├───────────────┼──────────────────────────────────────────────────┤
 │ ∀ apps        │ Each in its own namespace                        │
 │               │ Can reference cross-ns services/middlewares       │
 └───────────────┴──────────────────────────────────────────────────┘
@@ -284,6 +290,11 @@ This document is the primary guide for AI agents working in this repo — keep i
 16. **paperless-ngx requires Redis:** paperless-ngx depends on Redis as a Celery message broker for task processing (OCR, classification, indexing). Without Redis it will not start. The Redis Deployment runs ephemeral (no PVC) — it is a transient broker, so losing it loses only in-flight tasks, never documents. Redis is reachable only intra-namespace (`paperless-ngx-redis:6379`, no password).
 17. **paperless-ngx uid 1000 vs `local-path` ownership:** The `paperless-ngx` image runs as uid 1000 and needs write access to the data PVC. The Deployment includes `securityContext.fsGroup: 1000`; if `local-path` does not honor it and the pod crashes with permission errors, add a root `initContainer` that `chown`-s the `/data` mount.
 18. **paperless-ngx single-PVC with directory relocation:** paperless-ngx uses one PVC (`paperless-ngx-data`, `/data`) and relocates its data/media/consume directories under it via `PAPERLESS_DATA_DIR=/data/data`, `PAPERLESS_MEDIA_ROOT=/data/media`, `PAPERLESS_CONSUMPTION_DIR=/data/consume`. This keeps backup simple (one target). `local-path` default reclaim policy is `Delete` — if the app is removed from the kustomization, Flux prunes the PVC and all documents are lost. Back up `/data` out of band if it becomes important.
+19. **Nextcloud reverse-proxy requires `trusted_proxies` + `overwritehost`:** Behind Traefik, Nextcloud must trust the proxy's forwarded headers. Set `phpClientHttpsFix.enabled: true` (`overwriteprotocol: https`) and `nextcloud.host: sync.watchtoken.org` (sets `overwritehost`). Without these you'll get redirect loops, wrong URLs in share links, and broken WebDAV/sync clients.
+20. **Cloudflare Tunnel upload ceiling (~100 MB):** The Cloudflare free tier limits HTTP request bodies to ~100 MB through the tunnel. Large file uploads (videos, big archives) fail on the public `sync.watchtoken.org` route but work fine on LAN (`sync.local`). Photos and documents are unaffected.
+21. **Two-PVC consistent backup required:** Nextcloud has two persistent volumes (data `/var/www/html` + MariaDB). They must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`). Backing up one without the other = data loss on restore.
+22. **`overwritehost` is single-valued:** Setting it to `sync.watchtoken.org` means `.local` access generates public-host URLs for share links and WebDAV endpoints. This is expected and correct — the canonical hostname is the public one. Do not fight it with fragile workarounds.
+23. **`local-path` Delete reclaim on all PVCs:** Same as paperless-ngx (gotcha #18) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
 
 ## Forgejo Runner
 
