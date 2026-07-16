@@ -6,3 +6,5 @@ resources:
   - helmrepository.yaml
   - sealedsecret.yaml
   - helmrelease.yaml
+  - ingressroute.yaml
+  - ingressroute-https.yaml

@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nextcloud-https
+  namespace: nextcloud
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`sync.watchtoken.org`)
+      services:
+        - name: nextcloud
+          port: 8080
+  tls: {}
