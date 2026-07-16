@@ -12,6 +12,7 @@ resources:
   - forgejo
   - forgejo-runner
   - monitoring
+  - nextcloud
   - paperless-ngx
   - pdf-unlocker
   - sealed-secrets
