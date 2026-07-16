@@ -88,10 +88,7 @@ spec:
 
     persistence:
       enabled: true
-      annotations:
-        helm.sh/resource-policy: keep
       storageClass: local-path
-      accessMode: ReadWriteOnce
       size: 100Gi
 
     resources:
