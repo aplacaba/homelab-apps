@@ -70,6 +70,7 @@ spec:
 
     redis:
       enabled: true
+      architecture: standalone
       auth:
         enabled: false
       master:
@@ -77,9 +78,6 @@ spec:
           enabled: true
           storageClass: local-path
           size: 5Gi
-      replica:
-        persistence:
-          enabled: false
 
     ingress:
       enabled: false
