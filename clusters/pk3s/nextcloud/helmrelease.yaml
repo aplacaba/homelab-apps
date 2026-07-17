@@ -30,6 +30,13 @@ spec:
       trustedDomains:
         - sync.watchtoken.org
         - sync.local
+      extraEnv:
+        - name: OVERWRITEHOST
+          value: sync.watchtoken.org
+        - name: OVERWRITECLIURL
+          value: https://sync.watchtoken.org
+        - name: TRUSTED_PROXIES
+          value: 10.42.0.0/16
       mail:
         enabled: true
         fromAddress: alacaba
