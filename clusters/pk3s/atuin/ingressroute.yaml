@@ -1,0 +1,33 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: atuin
+  namespace: atuin
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`history.watchtoken.org`)
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik
+      services:
+        - name: atuin
+          port: 8888
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: atuin-tls
+  namespace: atuin
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`history.watchtoken.org`)
+      services:
+        - name: atuin
+          port: 8888
+  tls: {}
