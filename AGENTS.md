@@ -40,6 +40,7 @@ terraform/
 
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
+├── atuin/                     # Atuin shell history sync server (raw manifests, external PostgreSQL at 192.168.254.104)
 ├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site — served at cv.alacaba.org (Helm chart, OCI registry)
@@ -233,6 +234,11 @@ recoverable after a rebuild.
 │               │ Service: forgejo-http:3000                       │
 │               │ Service: forgejo-ssh:22 (NodePort 30022)         │
 │               │ Registry: https://fgit.watchtoken.org/v2/        │
+├───────────────┼──────────────────────────────────────────────────┤
+│ atuin         │ Shell history sync server                        │
+│               │ Service: atuin:8888                              │
+│               │ Public: history.watchtoken.org                   │
+│               │ DB: external PostgreSQL at 192.168.254.104       │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ monitoring    │ Prometheus, Loki, Grafana, Flux alerting         │
 ├───────────────┼──────────────────────────────────────────────────┤
