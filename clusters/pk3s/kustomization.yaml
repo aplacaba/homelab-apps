@@ -13,6 +13,7 @@ resources:
   - forgejo
   - forgejo-runner
   - monitoring
+  - neo4j
   - nextcloud
   - paperless-ngx
   - pdf-unlocker
