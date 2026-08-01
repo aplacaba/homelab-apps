@@ -50,6 +50,7 @@ clusters/pk3s/
 ├── forgejo/                   # Git + Actions + Registry (Helm chart)
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
+├── neo4j/                     # Neo4j graph database — backend for a personal app (Helm chart 5.26.28)
 ├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
@@ -169,6 +170,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
 | `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
+| `neo4j` | default | `https://neo4j.github.io/helm-charts` | neo4j |
 
 ## Secret Management (SealedSecrets)
 
@@ -241,6 +243,10 @@ recoverable after a rebuild.
 │               │ DB: external PostgreSQL at 192.168.254.104       │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ monitoring    │ Prometheus, Loki, Grafana, Flux alerting         │
+├───────────────┼──────────────────────────────────────────────────┤
+│ neo4j         │ Graph database (Community, pinned k3s-master)    │
+│               │ Service: neo4j:7687 (NodePort 30087)             │
+│               │ Browser: http://neo4j.local:30080                │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ nextcloud     │ File sync, MariaDB, Redis (100Gi PVC)              │
 ├───────────────┼──────────────────────────────────────────────────┤
@@ -382,6 +388,39 @@ ssh -T git@ssh.watchtoken.org
 ```
 
 Both should print the Forgejo greeting (`Hi <user>! You've successfully authenticated...`).
+
+## Neo4j
+
+Graph database backend for a personal app. Neo4j Community (chart `5.26.28`, pinned in `helmrelease.yaml`), single instance, in the `neo4j` namespace.
+
+### Access
+
+| Path | Address | How |
+|---|---|---|
+| **Bolt (app)** | `bolt://192.168.254.50:30087` | NodePort 30087 → 7687 on `neo4j-lb-neo4j` service (chart sets `externalTrafficPolicy: Local`) |
+| **Browser UI** | `http://neo4j.local:30080` | Traefik IngressRoute `Host(neo4j.local)` → ClusterIP service `neo4j` port `tcp-http` (7474) |
+
+Auth: user `neo4j`, password from the `neo4j-auth` SealedSecret (key `NEO4J_AUTH`, value `neo4j/<password>`).
+
+### Gotchas
+
+1. **Pod is pinned to k3s-master — do not remove the `nodeSelector`:** `externalTrafficPolicy: Local` on the NodePort service means `192.168.254.50:30087` only answers on the node hosting the pod. The LAN endpoint is the master's IP, so the pod MUST stay on `k3s-master` (`nodeSelector: {kubernetes.io/hostname: k3s-master}` in HelmRelease values). Moving it silently breaks LAN bolt access.
+2. **`passwordFromSecret` is initial-only:** Changing the `neo4j-auth` Secret does NOT change the database password. Rotate inside Neo4j first, then re-seal to match:
+   ```bash
+   # inside the pod (or via Browser):
+   kubectl exec -it -n neo4j neo4j-0 -- cypher-shell -u neo4j -p '<old>' \
+     "ALTER CURRENT USER SET PASSWORD FROM '<old>' TO '<new>'"
+   # then re-seal neo4j-auth with the new password (see Secret Management above)
+   ```
+3. **`local-path` Delete reclaim:** The 10Gi data PVC is `local-path` (reclaim `Delete`) — removing `neo4j` from the root kustomization prunes all graph data. Back up out of band if it becomes important.
+4. **Community edition = no Prometheus metrics:** `server.metrics.prometheus.enabled` is Enterprise-only. Don't add a ServiceMonitor for Neo4j on Community — it scrapes nothing.
+5. **Image tag is unsuffixed for community:** the chart renders `neo4j:5.26.28` (community; only enterprise adds `-enterprise`). Don't add a suffix.
+
+### Shell access
+
+```bash
+kubectl exec -it -n neo4j neo4j-0 -- cypher-shell -u neo4j -p '<password>'
+```
 
 ## Terraform Workflow
 
