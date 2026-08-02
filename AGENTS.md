@@ -55,6 +55,7 @@ clusters/pk3s/
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
+├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
 ├── traefik/                   # Ingress controller (Helm chart)
 └── vaultwarden/               # Password manager (Helm chart, community repo)
 ```
@@ -165,7 +166,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `prometheus-community` | default | `https://prometheus-community.github.io/helm-charts` | monitoring |
 | `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, promtail) |
 | `jetstack` | default | `https://charts.jetstack.io` | cert-manager |
-| `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
+| `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar, spec-frontend (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 | `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
@@ -306,7 +307,10 @@ This document is the primary guide for AI agents working in this repo — keep i
 20. **Cloudflare Tunnel upload ceiling (~100 MB):** The Cloudflare free tier limits HTTP request bodies to ~100 MB through the tunnel. Large file uploads (videos, big archives) fail on the public `sync.watchtoken.org` route but work fine on LAN (`sync.local`). Photos and documents are unaffected.
 21. **Two-PVC consistent backup required:** Nextcloud has two persistent volumes (data `/var/www/html` + MariaDB). They must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`). Backing up one without the other = data loss on restore.
 22. **`overwritehost` is single-valued:** Setting it to `sync.watchtoken.org` means `.local` access generates public-host URLs for share links and WebDAV endpoints. This is expected and correct — the canonical hostname is the public one. Do not fight it with fragile workarounds.
-23. **`local-path` Delete reclaim on all PVCs:** Same as paperless-ngx (gotcha #18) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
+ 23. **`local-path` Delete reclaim on all PVCs:** Same as paperless-ngx (gotcha #18) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
+ 24. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
+ 25. **spec-frontend chart/image must be published before deploy:** The app repo (`~/Projects/spec-frontend`) publishes its chart via a `v*` tag on main (CI `publish-chart` job, `helm-pusher`-less — the registry-account secrets live in Forgejo CI). The chart as of v0.1.0 shipped an invalid pod-level `readOnlyRootFilesystem` — fixed upstream (moved to the container `securityContext`); if a freshly published chart is rejected, check that fix. The image tag equals the chart's `appVersion` (`main-<sha>`); the HelmRelease leaves `image.tag` empty to follow it. Verify with `helm pull oci://fgit.watchtoken.org/forgejo-admin/spec-frontend --version <v>`.
+ 26. **spec-frontend credentials are derived, not invented:** `neo4j-creds` (SealedSecret in `spec-frontend` ns) is re-sealed from the in-cluster `neo4j-auth` secret (`kubectl get secret neo4j-auth -n neo4j -o jsonpath='{.data.NEO4J_AUTH}' | base64 -d` → `neo4j/<pw>`, strip the prefix) — the plaintext never enters git or chat. The `forgejo-registry-auth` imagePullSecret is a copy of the flux-system dockerconfigjson re-sealed for the workload namespace (pull secrets must be namespace-local).
 
 ## Forgejo Runner
 
@@ -428,6 +432,34 @@ Auth: user `neo4j`, password from the `neo4j-auth` SealedSecret (key `NEO4J_AUTH
 ```bash
 kubectl exec -it -n neo4j neo4j-0 -- cypher-shell -u neo4j -p '<password>'
 ```
+
+## spec-frontend
+
+Read-only browser over the Neo4j story graph (Project → Change → Story DAGs),
+deployed from the app's own Helm chart (`spec-frontend` v0.2.3, pinned exactly)
+via the shared `cv-datastar` OCI HelmRepository — no separate HelmRepository.
+
+### Access
+
+| Path | Address | How |
+|---|---|---|
+| **LAN** | `http://spec-frontend.local:30080` | Traefik IngressRoute `Host(spec-frontend.local)` → service `spec-frontend:80` (add `192.168.254.50 spec-frontend.local` to /etc/hosts) |
+| **Public** | `https://spec.watchtoken.org` | Cloudflare tunnel → Traefik websecure, wildcard cert; `http://` 301-redirects via the shared `redirect-to-https` middleware |
+
+Neo4j creds: `neo4j-creds` SealedSecret (NEO4J_URI `bolt://neo4j.neo4j.svc:7687`),
+injected by the chart's `existingSecret`. The app is strictly read-only
+(MATCH-only guard in `src/sf/db` + tests, READ access mode) — the cluster does
+not enforce this, it's the app's design.
+
+### Version bump flow
+
+1. App repo: fix/feature → tag `vX.Y.Z` on main → CI `build-image` pushes
+   `forgejo-admin/spec-frontend:main-<sha>`, `publish-chart` pushes chart
+   `X.Y.Z` with `appVersion: main-<sha>`.
+2. This repo: bump the exact `version:` in `clusters/pk3s/spec-frontend/helmrelease.yaml`
+   (leave `image.tag` empty — the chart's appVersion selects the matching image).
+3. Reconcile and check `kubectl -n spec-frontend get helmrelease` Ready + pod
+   image tag matches the chart appVersion.
 
 ## Terraform Workflow
 
