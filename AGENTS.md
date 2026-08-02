@@ -436,7 +436,7 @@ kubectl exec -it -n neo4j neo4j-0 -- cypher-shell -u neo4j -p '<password>'
 ## spec-frontend
 
 Read-only browser over the Neo4j story graph (Project → Change → Story DAGs),
-deployed from the app's own Helm chart (`spec-frontend` v0.2.3, pinned exactly)
+deployed from the app's own Helm chart (`spec-frontend` v0.2.4, pinned exactly)
 via the shared `cv-datastar` OCI HelmRepository — no separate HelmRepository.
 
 ### Access
@@ -446,10 +446,23 @@ via the shared `cv-datastar` OCI HelmRepository — no separate HelmRepository.
 | **LAN** | `http://spec-frontend.local:30080` | Traefik IngressRoute `Host(spec-frontend.local)` → service `spec-frontend:80` (add `192.168.254.50 spec-frontend.local` to /etc/hosts) |
 | **Public** | `https://spec.watchtoken.org` | Cloudflare tunnel → Traefik websecure, wildcard cert; `http://` 301-redirects via the shared `redirect-to-https` middleware |
 
+**Auth:** HTTP Basic Auth is enforced by the app itself (not Traefik), on
+**both** routes. Credentials come from the `BASIC_AUTH_USER` /
+`BASIC_AUTH_PASSWORD` keys of the `neo4j-creds` SealedSecret (namespace
+`spec-frontend`) — the chart's `existingSecret` `envFrom` injects every key as
+an env var. The app exempts `GET /api/health` so the readiness probe stays
+unauthenticated. The LAN route stays plain HTTP — accepted trust boundary
+(home network); the protection target is the public route.
+
 Neo4j creds: `neo4j-creds` SealedSecret (NEO4J_URI `bolt://neo4j.neo4j.svc:7687`),
 injected by the chart's `existingSecret`. The app is strictly read-only
 (MATCH-only guard in `src/sf/db` + tests, READ access mode) — the cluster does
 not enforce this, it's the app's design.
+
+**Rotating the Basic Auth password:** re-seal `neo4j-creds` with the new
+`BASIC_AUTH_PASSWORD` (see Secret Management SOP), then `kubectl -n
+spec-frontend rollout restart deploy/spec-frontend` — a Secret update via
+`envFrom` does NOT restart the pod on its own.
 
 ### Version bump flow
 
@@ -458,8 +471,19 @@ not enforce this, it's the app's design.
    `X.Y.Z` with `appVersion: main-<sha>`.
 2. This repo: bump the exact `version:` in `clusters/pk3s/spec-frontend/helmrelease.yaml`
    (leave `image.tag` empty — the chart's appVersion selects the matching image).
-3. Reconcile and check `kubectl -n spec-frontend get helmrelease` Ready + pod
+3. Reconcile (`flux reconcile kustomization flux-system -n flux-system
+   --with-source`; the Kustomization is named `flux-system`, not `pk3s` — see
+   gotcha #3) and check `kubectl -n spec-frontend get helmrelease` Ready + pod
    image tag matches the chart appVersion.
+
+> Note: when a spec-frontend release changes auth-relevant behavior (e.g. adds
+> `BASIC_AUTH_*` support), verify it against the target image with a throwaway
+> pod (gate) before bumping — see the `spec-frontend-basic-auth` change history.
+
+> Archive note (out of apply scope): after apply + verify pass, the
+> `spec-frontend-basic-auth` delta spec is archived via the `openspec archive`
+> flow so the five-key `neo4j-creds` secret and Basic Auth requirements land in
+> the main spec (`openspec/specs/spec-frontend/spec.md`).
 
 ## Terraform Workflow
 
