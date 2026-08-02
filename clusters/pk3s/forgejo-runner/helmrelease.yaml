@@ -43,6 +43,13 @@ spec:
         requests:
           cpu: 100m
           memory: 256Mi
+    volumes:
+      - name: dind-data
+        persistentVolumeClaim:
+          claimName: dind-data
+    volumeMounts:
+      - name: dind-data
+        mountPath: /var/lib/docker
     resources:
       limits:
         cpu: 2000m
