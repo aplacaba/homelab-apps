@@ -25,6 +25,7 @@ spec:
         file:
           container:
             privileged: true
+            options: "--cpus=2 --memory=4g"
           runner:
             labels:
               - "ubuntu-latest:docker://node:22-bookworm"
@@ -34,15 +35,15 @@ spec:
         tag: "29.5-dind"
       resources:
         limits:
-          cpu: 2000m
-          memory: 2Gi
+          cpu: 4000m
+          memory: 4Gi
         requests:
           cpu: 100m
           memory: 256Mi
     resources:
       limits:
-        cpu: 1000m
-        memory: 1Gi
+        cpu: 2000m
+        memory: 2Gi
       requests:
         cpu: 100m
         memory: 128Mi

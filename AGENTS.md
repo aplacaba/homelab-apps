@@ -315,6 +315,13 @@ service (`forgejo-http.forgejo.svc:3000`). Uses Docker-in-Docker sidecar for
 container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
 `docker://node:22-bookworm`).
 
+### Resource configuration
+
+Sized for JVM-based workloads (Clojure/ClojureScript builds): job containers get
+`--cpus=2 --memory=4g` via `runner.config.file.container.options`; runner
+container limits 2000m/2Gi; dind sidecar limits 4000m/4Gi. Requests stay small
+(100m, 128Mi/256Mi) to preserve headroom on the single-node cluster.
+
 ### Health check
 
 ```bash
