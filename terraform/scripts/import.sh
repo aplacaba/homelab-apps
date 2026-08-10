@@ -31,7 +31,6 @@ import_record() {
 
 import_record "$WATCHTOKEN_ZONE" "cv.watchtoken.org"    cloudflare_dns_record.cv_watchtoken
 import_record "$WATCHTOKEN_ZONE" "fgit.watchtoken.org"  cloudflare_dns_record.fgit_watchtoken
-import_record "$WATCHTOKEN_ZONE" "vault.watchtoken.org" cloudflare_dns_record.vault_watchtoken
 import_record "$ALACABA_ZONE"    "cv.alacaba.org"       cloudflare_dns_record.cv_alacaba
 
 echo ""
