@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: watcharr
+  namespace: watcharr
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`watcharr.local`)
+      services:
+        - name: watcharr
+          port: 3080

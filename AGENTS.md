@@ -57,7 +57,8 @@ clusters/pk3s/
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
 ├── traefik/                   # Ingress controller (Helm chart)
-└── vaultwarden/               # Password manager (Helm chart, community repo)
+├── vaultwarden/               # Password manager (Helm chart, community repo)
+└── watcharr/                  # Media watch list / tracker (raw manifests, SQLite) — LAN watcharr.local
 ```
 
 ## App Deployment Pattern

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: watcharr
+  namespace: watcharr
+  labels:
+    app: watcharr
+spec:
+  selector:
+    app: watcharr
+  ports:
+    - name: http
+      port: 3080
+      targetPort: 3080
