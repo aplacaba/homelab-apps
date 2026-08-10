@@ -30,13 +30,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
         }
       },
       {
-        hostname = "vault.watchtoken.org"
-        service  = local.tunnel_service
-        origin_request = {
-          no_tls_verify = true
-        }
-      },
-      {
         hostname = "ssh.watchtoken.org"
         service  = "ssh://forgejo-ssh.forgejo.svc:22"
       },

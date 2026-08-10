@@ -57,7 +57,6 @@ clusters/pk3s/
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
 ├── traefik/                   # Ingress controller (Helm chart)
-├── vaultwarden/               # Password manager (Helm chart, community repo)
 └── watcharr/                  # Media watch list / tracker (raw manifests, SQLite) — LAN watcharr.local
 ```
 
@@ -169,7 +168,6 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `jetstack` | default | `https://charts.jetstack.io` | cert-manager |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar, spec-frontend (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
-| `vaultwarden` | default | `https://guerzon.github.io/vaultwarden` | vaultwarden |
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
 | `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
 | `neo4j` | default | `https://neo4j.github.io/helm-charts` | neo4j |
