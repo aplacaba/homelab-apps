@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watcharr
+  namespace: watcharr
+  labels:
+    app: watcharr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: watcharr
+  template:
+    metadata:
+      labels:
+        app: watcharr
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: watcharr
+          image: ghcr.io/sbondco/watcharr:v4.2.1
+          ports:
+            - containerPort: 3080
+              name: http
+          env:
+            - name: WATCHARR_DATA
+              value: /data
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: watcharr-data
