@@ -7,4 +7,5 @@ resources:
   - helmrelease.yaml
   - ingressroute-public.yaml
   - ingressroute-https.yaml
+  - sealedsecret-db-passwd.yaml
   - servicemonitor.yaml

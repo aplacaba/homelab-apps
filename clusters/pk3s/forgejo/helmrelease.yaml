@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: forgejo
-      version: "17.1.x"
+      version: "17.1.4"
       sourceRef:
         kind: HelmRepository
         name: forgejo
@@ -28,6 +28,13 @@ spec:
           ROOT_URL: https://fgit.watchtoken.org
           SSH_DOMAIN: ssh.watchtoken.org
           SSH_PORT: 22
+        database:
+          DB_TYPE: postgres
+          HOST: 192.168.254.104:5432
+          NAME: forgejo
+          USER: forgejo
+          PASSWD_URI: file:/secrets/db-passwd
+          SSL_MODE: disable
         metrics:
           ENABLED: "true"
 
@@ -56,19 +63,16 @@ spec:
       size: 10Gi
       storageClass: local-path
 
-    postgresql:
-      enabled: true
-      auth:
-        username: forgejo
-        password: forgejo
-        database: forgejo
-      primary:
-        persistence:
-          size: 5Gi
-          storageClass: local-path
+    extraVolumes:
+      - name: forgejo-db-passwd
+        secret:
+          secretName: forgejo-db-passwd
 
-    postgresql-ha:
-      enabled: false
+    extraContainerVolumeMounts:
+      - name: forgejo-db-passwd
+        mountPath: /secrets/db-passwd
+        subPath: DB_PASSWD
+        readOnly: true
 
     redis:
       enabled: false
