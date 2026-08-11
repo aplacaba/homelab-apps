@@ -74,6 +74,12 @@ spec:
         subPath: DB_PASSWD
         readOnly: true
 
+    extraInitVolumeMounts:
+      - name: forgejo-db-passwd
+        mountPath: /secrets/db-passwd
+        subPath: DB_PASSWD
+        readOnly: true
+
     redis:
       enabled: false
 
