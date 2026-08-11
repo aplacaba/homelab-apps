@@ -47,7 +47,7 @@ clusters/pk3s/
 ├── floci/                     # FLOCI tool (raw manifests)
 ├── flux-dashboard/            # Flux web UI (raw manifests)
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
-├── forgejo/                   # Git + Actions + Registry (Helm chart)
+├── forgejo/                   # Git + Actions + Registry (Helm chart 17.1.4, external PostgreSQL)
 ├── forgejo-runner/            # CI runner (Helm chart)
 ├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
 ├── neo4j/                     # Neo4j graph database — backend for a personal app (Helm chart 5.26.28)
@@ -135,7 +135,7 @@ Only override values that differ from chart defaults. Use the `helmrelease.yaml`
 to pass `values:` — don't duplicate the full `values.yaml` from the chart.
 Reference existing patterns:
 
-- **Forgejo** (`clusters/pk3s/forgejo/helmrelease.yaml`) — full app with PostgreSQL subchart
+- **Forgejo** (`clusters/pk3s/forgejo/helmrelease.yaml`) — full app on external PostgreSQL 18.3 (no bundled subchart; see the Forgejo PostgreSQL section)
 - **cv-datastar** (`clusters/pk3s/cv-datastar/helmrelease.yaml`) — static site, OCI chart, imagePullSecrets
 
 ### Local Helm charts (OCI registry)
@@ -236,6 +236,7 @@ recoverable after a rebuild.
 │               │ Service: forgejo-http:3000                       │
 │               │ Service: forgejo-ssh:22 (NodePort 30022)         │
 │               │ Registry: https://fgit.watchtoken.org/v2/        │
+│               │ DB: external PostgreSQL 18.3 at 192.168.254.104  │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ atuin         │ Shell history sync server                        │
 │               │ Service: atuin:8888                              │
@@ -398,6 +399,31 @@ ssh -T git@ssh.watchtoken.org
 ```
 
 Both should print the Forgejo greeting (`Hi <user>! You've successfully authenticated...`).
+
+## Forgejo PostgreSQL (migration runbook)
+
+Forgejo runs on the central PostgreSQL 18.3 instance at `192.168.254.104` (database `forgejo`, role `forgejo`, non-superuser). The SQLite-era data was migrated on 2026-08-11; a shutdown-consistent snapshot remains on the PVC at `/data/backup/forgejo-2026-08-11/` (checkpointed `forgejo.db` + `counts-sqlite.txt` + `forgejo-dump.zip`, 256 MB).
+
+### Rollback runbook (only if a gate fails)
+
+File operations run from a PVC-mounted pod (image `nouchka/sqlite3`, mount `gitea-shared-storage` at `/data`), since forgejo is scaled to 0 in both cases.
+
+- **Phase A failure (lossless — forgejo never started on PG):** `rm -f /data/gitea/forgejo.db-wal /data/gitea/forgejo.db-shm` → `cp -a /data/backup/forgejo-2026-08-11/forgejo.db* /data/` (NOTE: the live DB path is `/data/forgejo.db`, NOT `/data/gitea/forgejo.db`) → revert `gitea.config.database` to `sqlite3` in git → push + merge → `flux reconcile kustomization flux-system -n flux-system --with-source` → reconcile-and-verify gate (release still suspended AND staged spec shows `DB_TYPE: sqlite3`) → `flux resume` → verify SQLite startup
+- **Phase B hard failure (data-loss boundary applies):** `flux suspend helmrelease forgejo -n forgejo` FIRST → scale 0 → same PVC-pod file restore + git revert + gate as above → `flux resume`; the PostgreSQL database is retained as the authoritative copy of post-cutover writes
+
+### Data-loss boundary
+
+- Rollback to SQLite is **lossless only before forgejo has accepted post-cutover writes** on PostgreSQL (i.e. at the Phase A decision point, before normal traffic resumes)
+- Any rollback after forgejo has accepted writes discards those writes
+- Snapshot retention: the snapshot dir + dump zip stay on the PVC until the first successful monthly restore test (minimum 7 days)
+
+## PostgreSQL backups (192.168.254.104)
+
+The dedicated PostgreSQL box backs up both databases (`atuin`, `forgejo`) nightly at 02:30 via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
+
+### Monthly restore test (manual)
+
+Per database, most recent dump → restore into a scratch DB with `pg_restore --exit-on-error` → compare restored row counts against the most recent `backup.log` entry for that exact dump filename → drop the scratch DB. ANY failure — `pg_restore` exit != 0, a failing count query, or a count mismatch — emits a FAILED line and writes the `last-failure` sentinel (same alerting path as the nightly run). A successful test releases the migration snapshot retention hold (see Forgejo PostgreSQL).
 
 ## Neo4j
 
