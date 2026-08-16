@@ -141,6 +141,12 @@ spec:
             - media-local-path-provisioner-sa
             - --configmap-name
             - media-local-path-provisioner-config
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 10m
+            limits:
+              memory: 128Mi
           env:
             - name: POD_NAMESPACE
               valueFrom:
