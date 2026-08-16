@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelfmark
+  namespace: media
+  labels:
+    app: shelfmark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shelfmark
+  template:
+    metadata:
+      labels:
+        app: shelfmark
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: shelfmark
+          image: ghcr.io/calibrain/shelfmark:v1.3.9
+          ports:
+            - containerPort: 8084
+              name: http
+          env:
+            - name: INGEST_DIR
+              value: /data/books
+            - name: TZ
+              value: America/Montevideo
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1.5Gi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: media
+              mountPath: /data
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: media
+          hostPath:
+            path: /home/new-media/Media
+            type: Directory
+        - name: config
+          persistentVolumeClaim:
+            claimName: shelfmark-config

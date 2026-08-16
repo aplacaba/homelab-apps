@@ -31,10 +31,10 @@ resources:
   - pvc-lidarr-config.yaml
   - service-lidarr.yaml
   - ingressroute-lidarr.yaml
-  - deployment-lazylibrarian.yaml
-  - pvc-lazylibrarian-config.yaml
-  - service-lazylibrarian.yaml
-  - ingressroute-lazylibrarian.yaml
+  - deployment-shelfmark.yaml
+  - pvc-shelfmark-config.yaml
+  - service-shelfmark.yaml
+  - ingressroute-shelfmark.yaml
   - deployment-prowlarr.yaml
   - pvc-prowlarr-config.yaml
   - service-prowlarr.yaml

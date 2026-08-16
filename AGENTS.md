@@ -715,7 +715,7 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 | prowlarr | prowlarr.local | indexer hub; syncs to sonarr/radarr/lidarr |
 | bazarr | bazarr.local | subtitles |
 | qbittorrent / sabnzbd | *.local | inside the VPN'd `download` pod (gluetun sidecar) |
-| lazylibrarian | lazylibrarian.local | ebooks (replaced readarr — ls.io readarr:develop discontinued) |
+| shelfmark | shelfmark.local | book/audiobook search & request hub (ghcr.io/calibrain/shelfmark, Standard image) |
 
 ### Key architecture facts
 
@@ -766,7 +766,26 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 - **Indexers**: zetorrents/zktorrent prowlarr definitions point at stale
   domains (rotation lists now redirect to parked pages) — update baseUrls
   manually; ZkTorrent needs FlareSolverr.
-- **LazyLibrarian root redirects** (303 to /home) — normal.
+- **Shelfmark memory cap is 1.5Gi, not upstream's recommended ~2Gi**: the
+  Standard image bundles Chromium for Cloudflare bypass on Direct Download
+  sources, and upstream recommends ~2Gi container memory. The media node's
+  16G no-overcommit budget (pod limits ~14.1Gi total) caps shelfmark at
+  1.5Gi. Typical Direct Download sessions work (above the "problems start at
+  1Gi" threshold); if you see `403 detected; switching to bypasser` +
+  `No download URL found` loops, raise the limit with a compensating
+  reduction elsewhere (e.g. immich ML 3Gi→2Gi) or switch to the Lite image
+  with an external FlareSolverr.
+- **Shelfmark runs non-root (pod securityContext)**: `runAsUser: 1000`,
+  `runAsGroup: 1000`, `runAsNonRoot: true`, `fsGroup: 1000` — NOT an LSIO
+  image, no PUID/PGID. Its entrypoint requires writable `/tmp/shelfmark`,
+  `/config` and runtime HOME (fsGroup covers them). TZ env is accepted but
+  `/etc/localtime` is not changed in non-root mode (cosmetic).
+- **Shelfmark is a manual search/request tool**: it does not monitor authors,
+  series, or new releases (upstream non-goals). Downloads land in
+  `INGEST_DIR=/data/books` on the media disk. Indexers/download clients
+  (Prowlarr, qBittorrent, Sabnzbd) are configured in its UI. The 2Gi
+  `shelfmark-config` PVC is `media-local-path` (reclaim Delete — removed from
+  kustomization = config lost).
 
 ### Node join/upgrade SOP
 
