@@ -5,7 +5,7 @@ metadata:
   namespace: media
 spec:
   interval: 1h
-  suspend: true
+  suspend: false
   chart:
     spec:
       chart: immich
