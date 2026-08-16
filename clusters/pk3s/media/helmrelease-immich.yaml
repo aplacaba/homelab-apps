@@ -22,7 +22,7 @@ spec:
             image:
               tag: v3.0.0
             env:
-              DB_HOSTNAME: immich-postgres
+              DB_HOSTNAME: 192.168.254.104
               DB_PORT: "5432"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich

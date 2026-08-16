@@ -19,9 +19,6 @@ resources:
   - service-download.yaml
   - ingressroute-qbittorrent.yaml
   - ingressroute-sabnzbd.yaml
-  - deployment-postgres.yaml
-  - pvc-postgres.yaml
-  - service-postgres.yaml
   - deployment-sonarr.yaml
   - pvc-sonarr-config.yaml
   - service-sonarr.yaml
