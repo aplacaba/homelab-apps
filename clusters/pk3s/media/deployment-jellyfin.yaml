@@ -44,6 +44,9 @@ spec:
               mountPath: /config
       securityContext:
         fsGroup: 1000
+        supplementalGroups:
+          - 44
+          - 105
       volumes:
         - name: dri
           hostPath:
