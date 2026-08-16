@@ -74,6 +74,9 @@ spec:
           storageClass: local-path
           accessMode: ReadWriteOnce
           size: 8Gi
+        resources:
+          requests:
+            cpu: 250m
 
     redis:
       enabled: true
