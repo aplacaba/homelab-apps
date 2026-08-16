@@ -44,6 +44,9 @@ spec:
               mountPath: /data
             - name: config
               mountPath: /config
+            - name: intel-init
+              mountPath: /custom-cont-init.d/50-intel-gpu.sh
+              subPath: 50-intel-gpu.sh
       securityContext:
         fsGroup: 1000
         supplementalGroups:
@@ -61,3 +64,7 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: jellyfin-config
+        - name: intel-init
+          configMap:
+            name: jellyfin-intel-init
+            defaultMode: 0555

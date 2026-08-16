@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jellyfin-intel-init
+  namespace: media
+data:
+  50-intel-gpu.sh: |
+    #!/bin/bash
+    set -e
+    if [ ! -f /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so ]; then
+      echo "deb https://repositories.intel.com/gpu/ubuntu noble unified" > /etc/apt/sources.list.d/intel-gpu.list
+      apt-get update -q || true
+      apt-get install -y -q --no-install-recommends intel-media-va-driver-non-free || true
+    fi
+    cp -f /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so /usr/lib/jellyfin-ffmpeg/lib/dri/ 2>/dev/null || true
+    cp -f /usr/lib/x86_64-linux-gnu/libva.so.2 /usr/lib/jellyfin-ffmpeg/lib/ 2>/dev/null || true
+    cp -f /usr/lib/x86_64-linux-gnu/libdrm.so.2 /usr/lib/jellyfin-ffmpeg/lib/ 2>/dev/null || true
+    cp -f /usr/lib/x86_64-linux-gnu/libva-drm.so.2 /usr/lib/jellyfin-ffmpeg/lib/ 2>/dev/null || true
