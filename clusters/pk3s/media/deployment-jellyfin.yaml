@@ -18,6 +18,8 @@ spec:
       containers:
         - name: jellyfin
           image: lscr.io/linuxserver/jellyfin:latest
+          securityContext:
+            privileged: true
           ports:
             - containerPort: 8096
               name: http
