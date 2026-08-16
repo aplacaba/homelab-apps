@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: media-local-path-provisioner-sa
+  namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: media-local-path-provisioner-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumeclaims", "configmaps", "pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: media-local-path-provisioner-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: media-local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: media-local-path-provisioner-sa
+    namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: media-local-path-provisioner-role
+  namespace: media
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: media-local-path-provisioner-bind
+  namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: media-local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: media-local-path-provisioner-sa
+    namespace: media
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: media-local-path-provisioner-config
+  namespace: media
+data:
+  config.json: |-
+    {
+      "nodePathMap":[
+      {
+        "node":"k3s-media",
+        "paths":["/home/rancher/k3s/storage"]
+      }
+      ]
+    }
+  setup: |-
+    #!/bin/sh
+    set -eu
+    mkdir -m 0777 -p "${VOL_DIR}"
+    chmod 700 "${VOL_DIR}/.."
+  teardown: |-
+    #!/bin/sh
+    set -eu
+    rm -rf "${VOL_DIR}"
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      nodeSelector:
+        media: "yes"
+      tolerations:
+        - key: media
+          operator: Equal
+          value: "yes"
+          effect: NoSchedule
+      priorityClassName: system-node-critical
+      containers:
+        - name: helper-pod
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-local-path-provisioner
+  namespace: media
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-local-path-provisioner
+  template:
+    metadata:
+      labels:
+        app: media-local-path-provisioner
+    spec:
+      serviceAccountName: media-local-path-provisioner-sa
+      priorityClassName: system-node-critical
+      nodeSelector:
+        media: "yes"
+      tolerations:
+        - key: media
+          operator: Equal
+          value: "yes"
+          effect: NoSchedule
+      containers:
+        - name: local-path-provisioner
+          image: rancher/local-path-provisioner:v0.0.37
+          imagePullPolicy: IfNotPresent
+          command:
+            - local-path-provisioner
+            - start
+            - --config
+            - /etc/config/config.json
+            - --provisioner-name
+            - rancher.io/local-path-media
+            - --service-account-name
+            - media-local-path-provisioner-sa
+            - --configmap-name
+            - media-local-path-provisioner-config
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config/
+      volumes:
+        - name: config-volume
+          configMap:
+            name: media-local-path-provisioner-config

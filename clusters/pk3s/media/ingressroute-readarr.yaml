@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: readarr
+  namespace: media
+spec:
+  entryPoints:
+  - web
+  routes:
+  - kind: Rule
+    match: Host(`readarr.local`)
+    services:
+    - name: readarr
+      port: 8787

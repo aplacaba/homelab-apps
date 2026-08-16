@@ -12,6 +12,7 @@ resources:
   - flux-monitoring
   - forgejo
   - forgejo-runner
+  - media
   - monitoring
   - neo4j
   - nextcloud

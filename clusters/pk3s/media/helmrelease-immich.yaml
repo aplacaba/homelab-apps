@@ -1,0 +1,79 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+  namespace: media
+spec:
+  interval: 1h
+  suspend: true
+  chart:
+    spec:
+      chart: immich
+      version: 0.13.1
+      sourceRef:
+        kind: HelmRepository
+        name: immich
+        namespace: flux-system
+  values:
+    controllers:
+      main:
+        containers:
+          main:
+            image:
+              tag: v3.0.0
+            env:
+              DB_HOSTNAME: immich-postgres
+              DB_PORT: "5432"
+              DB_DATABASE_NAME: immich
+              DB_USERNAME: immich
+              DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: immich-postgres-credentials
+                    key: POSTGRES_PASSWORD
+    immich:
+      persistence:
+        library:
+          existingClaim: immich-library
+    valkey:
+      enabled: true
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  memory: 32Mi
+                  cpu: 10m
+                limits:
+                  memory: 128Mi
+    server:
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  memory: 256Mi
+                  cpu: 50m
+                limits:
+                  memory: 1Gi
+    machine-learning:
+      controllers:
+        main:
+          containers:
+            main:
+              resources:
+                requests:
+                  memory: 512Mi
+                  cpu: 50m
+                limits:
+                  memory: 3Gi
+    defaultPodOptions:
+      nodeSelector:
+        media: "yes"
+      tolerations:
+        - key: media
+          operator: Equal
+          value: "yes"
+          effect: NoSchedule

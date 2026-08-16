@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sabnzbd
+  namespace: media
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`sabnzbd.local`)
+      services:
+        - name: download
+          port: 8080

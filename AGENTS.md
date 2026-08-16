@@ -676,3 +676,20 @@ kubectl exec -it -n forgejo-runner deploy/forgejo-runner -c runner -- /bin/sh
 # Docker-in-Docker sidecar
 kubectl exec -it -n forgejo-runner deploy/forgejo-runner -c dind -- /bin/sh
 ```
+
+## Media Stack Rollback (per-app cutover safety)
+
+During the media migration, every cutover keeps the old docker container
+available until its replacement is verified. Rollback is **per-app**:
+
+1. Deactivate the replacement through Git/Flux first — commit `replicas: 1 → 0`
+   in the app's `clusters/pk3s/media/deployment-*.yaml` and confirm the pod is
+   stopped. NEVER `kubectl scale` (Flux reverts it).
+2. Only then restart the old docker container (`docker start <app>` on the VM).
+3. The download unit rolls back **atomically**: deactivate the `download`
+   Deployment via Git first, then restart the old `gluetun`, `qbittorrent`
+   and `sabnzbd` containers together.
+
+**Invariant: never two writers on the same state** — the old container stays
+stopped while its replacement runs, and the replacement is confirmed stopped
+before the old container restarts.

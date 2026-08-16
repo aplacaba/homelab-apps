@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  namespace: media
+  labels:
+    app: seerr
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: seerr
+  template:
+    metadata:
+      labels:
+        app: seerr
+    spec:
+      containers:
+      - name: seerr
+        image: ghcr.io/seerr-team/seerr:latest
+        ports:
+        - containerPort: 5055
+          name: http
+        env:
+        - name: TZ
+          value: America/Montevideo
+        - name: PORT
+          value: '5055'
+        resources:
+          requests:
+            memory: 128Mi
+            cpu: 50m
+          limits:
+            memory: 512Mi
+        volumeMounts:
+        - name: media
+          mountPath: /media
+        - name: config
+          mountPath: /config
+        securityContext:
+          runAsUser: 1000
+      securityContext:
+        fsGroup: 1000
+      volumes:
+      - name: media
+        hostPath:
+          path: /home/new-media/Media
+          type: Directory
+      - name: config
+        persistentVolumeClaim:
+          claimName: seerr-config
