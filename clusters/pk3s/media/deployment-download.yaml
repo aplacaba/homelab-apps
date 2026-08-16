@@ -81,7 +81,7 @@ spec:
               memory: 1.5Gi
           volumeMounts:
             - name: media
-              mountPath: /media
+              mountPath: /data
             - name: qbittorrent-config
               mountPath: /config
         - name: sabnzbd
@@ -104,7 +104,7 @@ spec:
               memory: 750Mi
           volumeMounts:
             - name: media
-              mountPath: /media
+              mountPath: /data
             - name: sabnzbd-config
               mountPath: /config
       securityContext:

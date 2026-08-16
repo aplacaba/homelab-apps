@@ -36,7 +36,7 @@ spec:
             memory: 512Mi
         volumeMounts:
         - name: media
-          mountPath: /media
+          mountPath: /data
         - name: config
           mountPath: /config
       securityContext:
