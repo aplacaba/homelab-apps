@@ -36,7 +36,7 @@ spec:
         - name: media
           mountPath: /data
         - name: config
-          mountPath: /config
+          mountPath: /app/config
         securityContext:
           runAsUser: 1000
       securityContext:
