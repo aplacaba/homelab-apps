@@ -693,3 +693,88 @@ available until its replacement is verified. Rollback is **per-app**:
 **Invariant: never two writers on the same state** — the old container stays
 stopped while its replacement runs, and the replacement is confirmed stopped
 before the old container restarts.
+
+## Media Stack (k3s-media node)
+
+The media platform runs in the `media` namespace, pinned to the dedicated
+tainted node `k3s-media` (192.168.254.109, the repurposed media VM): label
+`media=yes`, taint `media=yes:NoSchedule`. All media pods carry the
+`media` nodeSelector + toleration (shared `component-media-pin` kustomize
+component). The node keeps the Arc B580 GPU passthrough (jellyfin QSV) and
+the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
+`RequiresMountsFor` drop-in on the k3s-agent service).
+
+### Access (LAN only, via 192.168.254.50:30080)
+
+| App | Hostname | Notes |
+|---|---|---|
+| jellyfin | jellyfin.local | QSV transcode (privileged container + Intel driver init script) |
+| seerr | seerr.local | requests UI |
+| immich | immich.local | photos (central PG at 192.168.254.104) |
+| sonarr / radarr / lidarr | *.local | hardlinked imports from /data/downloads |
+| prowlarr | prowlarr.local | indexer hub; syncs to sonarr/radarr/lidarr |
+| bazarr | bazarr.local | subtitles |
+| qbittorrent / sabnzbd | *.local | inside the VPN'd `download` pod (gluetun sidecar) |
+| lazylibrarian | lazylibrarian.local | ebooks (replaced readarr — ls.io readarr:develop discontinued) |
+
+### Key architecture facts
+
+- **download pod**: gluetun (sidecar initContainer, restartPolicy Always,
+  NET_ADMIN + /dev/net/tun, FIREWALL=on kill-switch, FIREWALL_INPUT_PORTS
+  8081,8080, postStart VPN-health gate) + qbittorrent (WEBUI_PORT=8081) +
+  sabnzbd. Pod dnsPolicy None + AirVPN tunnel DNS 10.128.0.1; SERVER_HOSTNAMES
+  must be an AirVPN hostname (sg.vpn.airdns.org), not an IP. Sabnzbd has no
+  usenet servers configured (deferred by operator).
+- **media-local-path StorageClass**: dedicated provisioner instance in the
+  media namespace (rancher.io/local-path-media, nodePathMap k3s-media ->
+  /home/rancher/k3s/storage, NO default entry). The agent `--data-dir`
+  (/home/rancher/k3s) does NOT relocate local-path provisioning — the SC is
+  what pins PVCs to /home.
+- **/data mount**: pods mount /home/new-media/Media at /data (matching the
+  migrated YAMS config paths). ONE mount per pod = the hardlink-import
+  contract (downloads -> tv/movies on one filesystem).
+- **jellyfin GPU**: privileged container (k8s device cgroup blocks /dev/dri
+  otherwise) + `configmap-jellyfin-intel-init` custom-cont-init script that
+  installs intel-media-va-driver-non-free (Intel repo) and copies system
+  libva/libdrm/iHD into /usr/lib/jellyfin-ffmpeg/lib (the bundled iHD lacks
+  Battlemage support; docker had the same failure).
+- **immich DB**: central PostgreSQL 192.168.254.104, database `immich`
+  (role immich, password in the sealed secret). Extensions pre-installed:
+  vector 0.8.6, vchord 1.1.1 (shared_preload_libraries=vchord.so),
+  cube, earthdistance. Immich server limit 1.5Gi (1Gi OOMs on migrations).
+  pg-backup.sh includes immich (tables users/assets).
+- **seerr**: config at /app/config (not /config!). Admin bootstrapped via
+  DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
+  the session cookie is required.
+- **Backups**: migration staging at /home/backups/media-migration on the
+  node (configs tar, immich dump, immich library tar).
+
+### Media stack gotchas
+
+- **Node conversion**: rename host to k3s-media BEFORE the k3s join (the
+  nodePathMap key must match); k3s writes a ~233M static data/ dir on root
+  regardless of --data-dir (normal).
+- **Uninstall semantics**: k3s-agent-uninstall.sh removes
+  /home/rancher/k3s ONLY when invoked with K3S_DATA_DIR=/home/rancher/k3s —
+  it contains the media-local-path PVC data.
+- **Rollback (per-app)**: commit replicas 1->0 + confirm stopped, THEN
+  restart the old docker container; download unit rolls back atomically.
+  Never two writers on the same state.
+- **DaemonSets skip the media node**: svclb-traefik, node-exporter and
+  promtail lack the media toleration (acceptable — LAN entry is the
+  master's NodePort; monitoring gap noted).
+- **Indexers**: zetorrents/zktorrent prowlarr definitions point at stale
+  domains (rotation lists now redirect to parked pages) — update baseUrls
+  manually; ZkTorrent needs FlareSolverr.
+- **LazyLibrarian root redirects** (303 to /home) — normal.
+
+### Node join/upgrade SOP
+
+```bash
+# join (from the media VM, token from master)
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.34.4+k3s1 \
+  K3S_URL=https://192.168.254.50:6443 K3S_TOKEN=<token> sh -s - agent \
+  --node-name k3s-media --node-label media=yes \
+  --node-taint media=yes:NoSchedule --data-dir /home/rancher/k3s
+# upgrades must match the cluster's k3s version (v1.34.4+k3s1)
+```
