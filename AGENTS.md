@@ -54,6 +54,7 @@ clusters/pk3s/
 ├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
+├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
 ├── traefik/                   # Ingress controller (Helm chart)
@@ -250,6 +251,7 @@ recoverable after a rebuild.
 │               │ Browser: http://neo4j.local:30080                │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ nextcloud     │ File sync, MariaDB, Redis (100Gi PVC)              │
+│ pve           │ Proxmox VE web UI via Traefik                      │
 ├───────────────┼──────────────────────────────────────────────────┤
 │ ∀ apps        │ Each in its own namespace                        │
 │               │ Can reference cross-ns services/middlewares       │
