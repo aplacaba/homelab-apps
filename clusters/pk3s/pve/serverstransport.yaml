@@ -1,0 +1,8 @@
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: pve-tls
+  namespace: pve
+spec:
+  # Proxmox's default node certificate is self-signed and not trusted by Traefik.
+  insecureSkipVerify: true

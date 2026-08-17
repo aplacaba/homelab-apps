@@ -18,6 +18,7 @@ resources:
   - nextcloud
   - paperless-ngx
   - pdf-unlocker
+  - pve
   - sealed-secrets
   - spec-frontend
   - traefik
