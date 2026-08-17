@@ -766,8 +766,12 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   master's NodePort; monitoring gap noted).
 - **Indexers**: zetorrents/zktorrent prowlarr definitions point at stale
   domains (rotation lists now redirect to parked pages) — update baseUrls
-  manually; ZkTorrent routes through the in-cluster FlareSolverr proxy
-  (see the FlareSolverr gotcha below).
+  manually. The zktorrent definition is ALSO outdated vs the current site
+  markup (title selector breaks: "Invalid Release ... No title provided");
+  upstream replaced it with `world-torrent` — use the World-torrent indexer
+  (live clone domain like `https://www.worldivx.cc/`) instead. ZkTorrent
+  routes through the in-cluster FlareSolverr proxy (see the FlareSolverr
+  gotcha below).
 - **FlareSolverr (Prowlarr proxy)**: runs in the media namespace
   (`http://flaresolverr:8191`, ClusterIP) with a 512Mi memory limit on the
   media node — no PVC, no ingress, no hostname. If it OOM-kills under load
