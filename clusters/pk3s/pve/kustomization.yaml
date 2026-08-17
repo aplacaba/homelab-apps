@@ -5,6 +5,9 @@ resources:
   - namespace.yaml
   - service.yaml
   - endpointslice.yaml
+  - issuer.yaml
+  - certificate.yaml
   - sealedsecret-pve-ca.yaml
   - serverstransport.yaml
+  - ingressroute-http.yaml
   - ingressroute.yaml
