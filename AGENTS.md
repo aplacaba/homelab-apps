@@ -809,6 +809,10 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   `pve.local`. If the Proxmox cluster CA or node certificate is regenerated,
   re-seal `/etc/pve/pve-root-ca.pem` directly from the Proxmox host and reconcile
   Flux; never commit the plaintext CA.
+- **PVE frontend TLS is self-signed**: cert-manager issues `pve-local-tls` for
+  `pve.local`, and the HTTP route redirects to HTTPS. Clients must trust the
+  generated certificate (or accept the browser warning) when opening
+  `https://pve.local`; this certificate is separate from the Proxmox backend CA.
 
 ### Node join/upgrade SOP
 
