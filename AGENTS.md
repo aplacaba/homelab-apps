@@ -802,6 +802,13 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   (Prowlarr, qBittorrent, Sabnzbd) are configured in its UI. The 2Gi
   `shelfmark-config` PVC is `media-local-path` (reclaim Delete — removed from
   kustomization = config lost).
+- **Proxmox upstream TLS uses the cluster CA**: the `pve` route validates
+  `192.168.254.165:8006` with the CA stored in the `pve/sealedsecret-pve-ca.yaml`
+  SealedSecret and sets `serverName: homelab.pve` because the node certificate
+  SAN does not include the endpoint IP. The user-facing hostname remains
+  `pve.local`. If the Proxmox cluster CA or node certificate is regenerated,
+  re-seal `/etc/pve/pve-root-ca.pem` directly from the Proxmox host and reconcile
+  Flux; never commit the plaintext CA.
 
 ### Node join/upgrade SOP
 

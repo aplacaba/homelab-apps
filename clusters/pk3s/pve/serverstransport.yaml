@@ -4,5 +4,7 @@ metadata:
   name: pve-tls
   namespace: pve
 spec:
-  # Proxmox's default node certificate is self-signed and not trusted by Traefik.
-  insecureSkipVerify: true
+  # The node certificate is issued for homelab.pve, not the endpoint IP.
+  serverName: homelab.pve
+  rootCAs:
+    - secret: pve-ca
