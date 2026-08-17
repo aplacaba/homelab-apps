@@ -15,8 +15,10 @@ resources:
   - storageclass-media-local-path.yaml
   - local-path-provisioner-media.yaml
   - deployment-download.yaml
+  - deployment-flaresolverr.yaml
   - pvc-download-config.yaml
   - service-download.yaml
+  - service-flaresolverr.yaml
   - ingressroute-qbittorrent.yaml
   - ingressroute-sabnzbd.yaml
   - deployment-sonarr.yaml

@@ -716,6 +716,7 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 | bazarr | bazarr.local | subtitles |
 | qbittorrent / sabnzbd | *.local | inside the VPN'd `download` pod (gluetun sidecar) |
 | shelfmark | shelfmark.local | book/audiobook search & request hub (ghcr.io/calibrain/shelfmark, Standard image) |
+| flaresolverr | none (internal only) | `http://flaresolverr:8191` ClusterIP — Prowlarr's FlareSolverr proxy for Cloudflare-protected indexers |
 
 ### Key architecture facts
 
@@ -765,11 +766,20 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   master's NodePort; monitoring gap noted).
 - **Indexers**: zetorrents/zktorrent prowlarr definitions point at stale
   domains (rotation lists now redirect to parked pages) — update baseUrls
-  manually; ZkTorrent needs FlareSolverr.
+  manually; ZkTorrent routes through the in-cluster FlareSolverr proxy
+  (see the FlareSolverr gotcha below).
+- **FlareSolverr (Prowlarr proxy)**: runs in the media namespace
+  (`http://flaresolverr:8191`, ClusterIP) with a 512Mi memory limit on the
+  media node — no PVC, no ingress, no hostname. If it OOM-kills under load
+  (`kubectl -n media get events`), raise it to 1Gi and compensate by
+  reducing immich ML from 3Gi to 2Gi. The Prowlarr-side configuration
+  (Settings → Indexers → FlareSolverr Proxy → `http://flaresolverr:8191`,
+  then assign the proxy per indexer — ZkTorrent mandatory) lives in
+  Prowlarr's DB and is LOST on rebuild: reconfigure in the UI.
 - **Shelfmark memory cap is 1.5Gi, not upstream's recommended ~2Gi**: the
   Standard image bundles Chromium for Cloudflare bypass on Direct Download
   sources, and upstream recommends ~2Gi container memory. The media node's
-  16G no-overcommit budget (pod limits ~14.1Gi total) caps shelfmark at
+  16G no-overcommit budget (pod limits ~14.6Gi total) caps shelfmark at
   1.5Gi. Typical Direct Download sessions work (above the "problems start at
   1Gi" threshold); if you see `403 detected; switching to bypasser` +
   `No download URL found` loops, raise the limit with a compensating
