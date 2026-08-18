@@ -112,7 +112,7 @@ spec:
           memory: 128Mi
         limits:
           cpu: 500m
-          memory: 512Mi
+          memory: 1Gi
       grafana.ini:
         server:
           root_url: http://grafana.local:30080
