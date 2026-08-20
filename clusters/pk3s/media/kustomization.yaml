@@ -8,6 +8,7 @@ resources:
   - namespace.yaml
   - sealedsecret-gluetun.yaml
   - sealedsecret-postgres.yaml
+  - sealedsecret-shelfmark-qbittorrent.yaml
   - helmrepository-immich-oci.yaml
   - pvc-immich-library.yaml
   - helmrelease-immich.yaml

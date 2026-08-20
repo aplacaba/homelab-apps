@@ -31,6 +31,13 @@ spec:
               value: /data/books
             - name: TZ
               value: America/Montevideo
+            - name: QBITTORRENT_URL
+              value: http://download:8081
+            - name: QBITTORRENT_USERNAME
+              value: admin
+          envFrom:
+            - secretRef:
+                name: shelfmark-qbittorrent
           resources:
             requests:
               memory: 256Mi
