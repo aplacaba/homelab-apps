@@ -52,6 +52,7 @@ clusters/pk3s/
 ├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
 ├── neo4j/                     # Neo4j graph database — backend for a personal app (Helm chart 5.26.28)
 ├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
+├── pangolin/                  # Pangolin newt tunnel agent → VPS relay for public jellyfin/seerr (Helm chart, no ingress)
 ├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
 ├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
@@ -172,6 +173,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
 | `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
 | `neo4j` | default | `https://neo4j.github.io/helm-charts` | neo4j |
+| `fossorial` | default | `https://charts.fossorial.io` | pangolin (newt) |
 
 ## Secret Management (SealedSecrets)
 
@@ -313,6 +315,9 @@ This document is the primary guide for AI agents working in this repo — keep i
  24. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
  25. **spec-frontend chart/image must be published before deploy:** The app repo (`~/Projects/spec-frontend`) publishes its chart via a `v*` tag on main (CI `publish-chart` job, `helm-pusher`-less — the registry-account secrets live in Forgejo CI). The chart as of v0.1.0 shipped an invalid pod-level `readOnlyRootFilesystem` — fixed upstream (moved to the container `securityContext`); if a freshly published chart is rejected, check that fix. The image tag equals the chart's `appVersion` (`main-<sha>`); the HelmRelease leaves `image.tag` empty to follow it. Verify with `helm pull oci://fgit.watchtoken.org/forgejo-admin/spec-frontend --version <v>`.
  26. **spec-frontend credentials are derived, not invented:** `neo4j-creds` (SealedSecret in `spec-frontend` ns) is re-sealed from the in-cluster `neo4j-auth` secret (`kubectl get secret neo4j-auth -n neo4j -o jsonpath='{.data.NEO4J_AUTH}' | base64 -d` → `neo4j/<pw>`, strip the prefix) — the plaintext never enters git or chat. The `forgejo-registry-auth` imagePullSecret is a copy of the flux-system dockerconfigjson re-sealed for the workload namespace (pull secrets must be namespace-local).
+ 27. **Media public DNS must stay gray-clouded:** the `watchtoken.org` apex plus `seerr`/`pangolin` A records (`proxied = false`) route straight to the Pangolin VPS. Setting `proxied = true` (or a stray wildcard A record) would send video through Cloudflare — a ToS §2.8 violation at 4-6 concurrent streams.
+ 28. **Pangolin VPS is not in git:** `/opt/pangolin` (config + SQLite) is backed up weekly via a systemd timer on the master (`pangolin-backup.timer`, Sun 02:30) → `/home/backups/pangolin`. A VPS rebuild = reinstall + restore dir; newt credentials are unchanged so the cluster side needs nothing.
+ 29. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
 
 ## Forgejo Runner
 
@@ -824,3 +829,51 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.34.4+k3s1 \
   --node-taint media=yes:NoSchedule --data-dir /home/rancher/k3s
 # upgrades must match the cluster's k3s version (v1.34.4+k3s1)
 ```
+
+## Pangolin Media Relay
+
+Public access for the media stack (friends, ~10 users) runs through a
+self-hosted Pangolin CE instance on a Hetzner VPS (Falkenstein, Debian 13,
+2 vCPU/4GB, `root@178.105.27.201`) — NOT Cloudflare Tunnel, so video
+streaming never violates CF ToS and the ~100 MB upload ceiling does not
+apply. TLS terminates at the VPS (wildcard `*.watchtoken.org` + apex, LE
+DNS-01 via a scoped Cloudflare token). Transcoding stays at home (B580 QSV).
+
+| Hostname | App | Auth | Backend target |
+|---|---|---|---|
+| watchtoken.org (apex) | Jellyfin | Jellyfin users (no Pangolin auth) | http://jellyfin.media.svc:8096 |
+| seerr.watchtoken.org | seerr | Pangolin SSO → Jellyfin SSO | http://seerr.media.svc:5055 |
+| pangolin.watchtoken.org | Pangolin dashboard | admin + MFA | — |
+
+### Key facts
+
+- **DNS is gray-clouded on purpose:** the `watchtoken.org` apex, `seerr`, and
+  `pangolin` A records have `proxied = false` in `terraform/dns.tf`. Never flip
+  them to proxied — that routes video through Cloudflare (ToS §2.8).
+- **Wildcard cert is config-file managed:** DNS-01 resolver (`cloudflare`
+  provider) replaces HTTP-01 in `config/traefik/traefik_config.yml`,
+  `CLOUDFLARE_DNS_API_TOKEN` env on the traefik container,
+  `prefer_wildcard_cert: true` on `domains.domain1` in `config/config.yml`,
+  and the dashboard router's `tls.domains` SAN (`watchtoken.org` +
+  `*.watchtoken.org`) triggers issuance. NOT configured via the dashboard —
+  the domain is file-managed from the installer.
+- **newt agent** runs in the `pangolin` namespace via the `fossorial/newt`
+  Helm chart 1.4.0, pinned to `k3s-master` (media node budget is constrained).
+  Credentials are a SealedSecret (`newt-auth`). It dials OUT over WireGuard —
+  no inbound ports at home.
+- **VPS is not GitOps:** config + SQLite DB live in `/opt/pangolin`, backed up
+  weekly by the `pangolin-backup` systemd timer on the master (rsync pull to
+  `/home/backups/pangolin`, Sun 02:30). Rebuild: reinstall (installer), restore
+  dir, newt reconnects on its own.
+- **CrowdSec** runs on the VPS (installer `--crowdsec`). If a friend is
+  blocked (false positive from residential IP reputation), whitelist their IP
+  via `cscli decisions` (see gotcha #29).
+- **Region note:** the VPS is Falkenstein, not Singapore as originally planned
+  — fine for EU/NA friends; SEA friends get higher latency. Accepted
+  divergence, recorded 2026-08-22.
+
+### Emergency stopgap
+
+If the VPS dies: point the apex A record at `cfargotunnel.com` (Cloudflare
+flattens apex CNAMEs), add a tunnel ingress for jellyfin (temporary ToS gray
+area), keep seerr dark until the VPS is rebuilt from the backup.
