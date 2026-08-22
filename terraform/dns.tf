@@ -72,3 +72,30 @@ resource "cloudflare_dns_record" "cv_alacaba" {
   ttl     = 1
   proxied = true
 }
+
+resource "cloudflare_dns_record" "watchtoken_apex" {
+  zone_id = data.cloudflare_zone.watchtoken_org.id
+  name    = "watchtoken.org"
+  content = var.pangolin_vps_ip
+  type    = "A"
+  ttl     = 1
+  proxied = false
+}
+
+resource "cloudflare_dns_record" "seerr_watchtoken" {
+  zone_id = data.cloudflare_zone.watchtoken_org.id
+  name    = "seerr"
+  content = var.pangolin_vps_ip
+  type    = "A"
+  ttl     = 1
+  proxied = false
+}
+
+resource "cloudflare_dns_record" "pangolin_watchtoken" {
+  zone_id = data.cloudflare_zone.watchtoken_org.id
+  name    = "pangolin"
+  content = var.pangolin_vps_ip
+  type    = "A"
+  ttl     = 1
+  proxied = false
+}

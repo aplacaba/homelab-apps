@@ -9,6 +9,12 @@ variable "cloudflare_account_id" {
   description = "Cloudflare account ID (visible in dashboard URL)"
 }
 
+variable "pangolin_vps_ip" {
+  type        = string
+  description = "Public IP of the Pangolin relay VPS (Hetzner CX23, Falkenstein)"
+  default     = "178.105.27.201"
+}
+
 locals {
   tunnel_service = "https://traefik.traefik.svc:443"
 }
