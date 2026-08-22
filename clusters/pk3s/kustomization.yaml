@@ -16,6 +16,7 @@ resources:
   - monitoring
   - neo4j
   - nextcloud
+  - pangolin
   - paperless-ngx
   - pdf-unlocker
   - pve
