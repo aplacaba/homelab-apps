@@ -9,6 +9,13 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
   config = {
     ingress = [
       {
+        hostname = "alacaba.org"
+        service  = local.tunnel_service
+        origin_request = {
+          no_tls_verify = true
+        }
+      },
+      {
         hostname = "cv.alacaba.org"
         service  = local.tunnel_service
         origin_request = {

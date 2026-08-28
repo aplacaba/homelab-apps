@@ -1,14 +1,14 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: cv-datastar-alacaba
+  name: cv-datastar-apex
   namespace: cv-datastar
 spec:
   entryPoints:
     - web
   routes:
     - kind: Rule
-      match: Host(`cv.alacaba.org`)
+      match: Host(`alacaba.org`)
       middlewares:
         - name: redirect-to-https
           namespace: traefik
@@ -16,16 +16,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: cv-datastar-alacaba-https
+  name: cv-datastar-apex-https
   namespace: cv-datastar
 spec:
   entryPoints:
     - websecure
   routes:
     - kind: Rule
-      match: Host(`cv.alacaba.org`)
-      middlewares:
-        - name: redirect-to-alacaba
-          namespace: cv-datastar
+      match: Host(`alacaba.org`)
+      services:
+        - name: cv-datastar
+          port: 8080
   tls:
     secretName: cv-alacaba-org-tls

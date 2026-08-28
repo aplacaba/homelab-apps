@@ -7,7 +7,8 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - ingressroute.yaml
-  - ingressroute-https.yaml
   - ingressroute-alacaba.yaml
+  - ingressroute-apex.yaml
+  - ingressroute-https.yaml
   - certificate-alacaba.yaml
   - middlewares

@@ -9,4 +9,5 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
+    - "alacaba.org"
     - "cv.alacaba.org"
