@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: actual-budget-https
+  namespace: actual-budget
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`budget.watchtoken.org`)
+      services:
+        - name: actual-budget
+          port: 5006
+  tls: {}
