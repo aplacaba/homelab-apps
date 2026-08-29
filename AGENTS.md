@@ -41,6 +41,7 @@ terraform/
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
 ├── atuin/                     # Atuin shell history sync server (raw manifests, external PostgreSQL at 192.168.254.104)
+├── actual-budget/             # Actual Budget — personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
 ├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (Helm chart, OCI registry)
@@ -320,6 +321,8 @@ This document is the primary guide for AI agents working in this repo — keep i
  27. **Media public DNS must stay gray-clouded:** the `watchtoken.org` apex plus `seerr`/`pangolin` A records (`proxied = false`) route straight to the Pangolin VPS. Setting `proxied = true` (or a stray wildcard A record) would send video through Cloudflare — a ToS §2.8 violation at 4-6 concurrent streams.
  28. **Pangolin VPS is not in git:** `/opt/pangolin` (config + SQLite) is backed up weekly via a systemd timer on the master (`pangolin-backup.timer`, Sun 02:30) → `/home/backups/pangolin`. A VPS rebuild = reinstall + restore dir; newt credentials are unchanged so the cluster side needs nothing.
  29. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
+ 30. **actual-budget data is a single small PVC:** Actual Budget stores its SQLite DB + user files on a 2Gi `local-path` PVC (`actual-budget-data`, `/data`). Reclaim is `Delete` — removing the app from the root kustomization wipes your budget. Actual's built-in "Export data" (Settings → Export data) is the off-cluster recovery path; run it before any destructive change.
+
 
 ## Forgejo Runner
 
