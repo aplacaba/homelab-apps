@@ -828,12 +828,27 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 
 ```bash
 # join (from the media VM, token from master)
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.34.4+k3s1 \
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=<cluster-version> \
   K3S_URL=https://192.168.254.50:6443 K3S_TOKEN=<token> sh -s - agent \
   --node-name k3s-media --node-label media=yes \
   --node-taint media=yes:NoSchedule --data-dir /home/rancher/k3s
-# upgrades must match the cluster's k3s version (v1.34.4+k3s1)
+# upgrades must match the cluster's k3s version
 ```
+
+Upgrade gotchas (learned 2026-08-30, v1.34.4 → v1.36.4):
+
+- **Upgrade the control plane one minor at a time** (1.34 → 1.35 → 1.36). Re-run
+  the installer on the master with the same CLI flags (`server --disable=traefik`) —
+  CLI flags are NOT preserved across reinstalls, only `K3S_*` env vars are.
+- **Agent re-install must be run as root with the token passed explicitly.** The
+  agent env file (`/etc/systemd/system/k3s-agent.service.env`) is root-owned and
+  not readable by the SSH user — sourcing it as the user silently drops
+  `K3S_TOKEN`/`K3S_URL`, and the installer overwrites the env file with empty
+  values, leaving the agent crash-looping. Pipe the token from the master
+  (`/var/lib/rancher/k3s/server/node-token`) via stdin to a `sudo sh -c` on the VM.
+- The `media-mount.conf` systemd drop-in survives agent reinstalls.
+- Running containers survive a k3s service restart (no pod restarts observed
+  across the upgrade), so app downtime is near-zero for both hops.
 
 ## Pangolin Media Relay
 
