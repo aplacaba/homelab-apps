@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-GitOps repository for a **k3s v1.34** homelab cluster managed by **Flux Operator**.
+GitOps repository for a **k3s v1.36** homelab cluster managed by **Flux Operator**.
 The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./clusters/pk3s`.
 
 | Aspect | Detail |
@@ -17,6 +17,22 @@ The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` storage class (k3s built-in) |
 | **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry. SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
+
+## GitOps Workflow — git first, never manual kubectl
+
+All cluster changes flow through this repo. Flux applies with server-side apply
+and **reverts out-of-band changes** (`kubectl apply/edit/scale`) on the next
+sync — manual cluster surgery is wasted work. Never `kubectl scale` to
+deactivate an app (see Media Stack Rollback); commit `replicas: 0` instead.
+`flux suspend/resume` is the only sanctioned manual action (migrations only).
+
+1. Edit manifests under `clusters/pk3s/<app>/`, commit, push.
+2. Reconcile instead of waiting for the 1h sync:
+   ```bash
+   flux reconcile kustomization flux-system -n flux-system --with-source
+   ```
+3. Verify before considering the change applied:
+   `kubectl -n flux-system get kustomization,helmrelease` — all `True`.
 
 ## Directory Structure
 
@@ -292,7 +308,7 @@ This document is the primary guide for AI agents working in this repo — keep i
 
 1. **Chart ingress vs IngressRoute:** If writing a manual IngressRoute, always disable the chart's built-in ingress.
 2. **OCI registry auth:** Charts pushed to `fgit.watchtoken.org` need a `forgejo-registry-auth` docker-registry Secret in `flux-system`.
-3. **Reconciliation lag:** Flux syncs every 1h by default. Force with `kubectl -n flux-system reconcile helmrepository <name>` or `kubectl -n flux-system reconcile kustomization pk3s`.
+3. **Reconciliation lag:** Flux syncs every 1h by default. Push your commit, then force a sync with `flux reconcile kustomization flux-system -n flux-system --with-source`. The root Kustomization is named `flux-system`, NOT `pk3s` (see GitOps Workflow).
 4. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
 5. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
 6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
