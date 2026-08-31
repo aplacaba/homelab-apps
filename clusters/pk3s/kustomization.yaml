@@ -18,6 +18,7 @@ resources:
   - neo4j
   - nextcloud
   - pangolin
+  - papra
   - paperless-ngx
   - pdf-unlocker
   - pve

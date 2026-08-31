@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: papra
+  namespace: papra
+  labels:
+    app: papra
+spec:
+  selector:
+    app: papra
+  ports:
+    - name: http
+      port: 1221
+      targetPort: 1221

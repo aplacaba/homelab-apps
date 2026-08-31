@@ -1,0 +1,61 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: papra-signup-block-mw
+  namespace: papra
+spec:
+  ipAllowList:
+    sourceRange:
+      - 127.0.0.1/32
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: papra-redirect
+  namespace: papra
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`papra.watchtoken.org`)
+      middlewares:
+        - name: redirect-to-https
+          namespace: traefik
+      services:
+        - name: papra
+          port: 1221
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: papra-websecure
+  namespace: papra
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`papra.watchtoken.org`)
+      services:
+        - name: papra
+          port: 1221
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: papra-block-signup
+  namespace: papra
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`papra.watchtoken.org`) && PathPrefix(`/api/auth/sign-up`)
+      middlewares:
+        - name: papra-signup-block-mw
+      services:
+        - name: papra
+          port: 1221
+  tls: {}
