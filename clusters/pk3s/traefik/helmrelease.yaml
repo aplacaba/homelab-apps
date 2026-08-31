@@ -35,7 +35,6 @@ spec:
     providers:
       kubernetesCRD:
         # Lets an IngressRoute reference resources in other namespaces — needed
-        # so the paperless IngressRoute can attach the authentik-forwardauth
-        # middleware (traefik ns) and route /outpost.goauthentik.io/ to
-        # authentik-server (authentik ns).
+        # so app IngressRoutes can attach the shared redirect-to-https
+        # middleware (traefik ns) and cross-ns services.
         allowCrossNamespace: true

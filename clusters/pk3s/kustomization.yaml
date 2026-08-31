@@ -19,8 +19,6 @@ resources:
   - nextcloud
   - pangolin
   - papra
-  - paperless-ngx
-  - pdf-unlocker
   - pve
   - sealed-secrets
   - spec-frontend

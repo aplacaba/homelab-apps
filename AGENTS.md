@@ -73,8 +73,7 @@ clusters/pk3s/
 ├── neo4j/                     # Neo4j graph database — backend for a personal app (Helm chart 5.26.28)
 ├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
 ├── pangolin/                  # Pangolin newt tunnel agent → VPS relay for public jellyfin/seerr (Helm chart, no ingress)
-├── paperless-ngx/             # Document management / OCR (raw manifests, bundled Redis)
-├── pdf-unlocker/              # PDF password unlocker for paperless-ngx (Helm chart, GHCR)
+├── papra/                     # Document archiving / OCR (raw manifests, SQLite on PVC) — public papra.watchtoken.org
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
 ├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
@@ -191,7 +190,6 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar, spec-frontend (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
-| `ghcr-aplacaba` | OCI | `oci://ghcr.io/aplacaba/charts` | pdf-unlocker |
 | `neo4j` | default | `https://neo4j.github.io/helm-charts` | neo4j |
 | `fossorial` | default | `https://charts.fossorial.io` | pangolin (newt) |
 
@@ -326,14 +324,14 @@ This document is the primary guide for AI agents working in this repo — keep i
 15. **Grafana admin credentials are a SealedSecret, not plaintext:** Grafana admin auth is no longer the default `admin/admin` in the HelmRelease. The password is stored in `monitoring/sealedsecret-grafana-admin.yaml` (keys `admin-user` and `admin-password`), and the HelmRelease references it via `grafana.admin.existingSecret: grafana-admin-secret`. To rotate the Grafana password, re-seal into that `SealedSecret` — do not edit the HelmRelease values directly.
 16. **cloudflared access SSH bypasses Traefik:** Public SSH (`ssh.watchtoken.org`) does NOT route through Traefik. The tunnel ingress routes directly to `forgejo-ssh.forgejo.svc:22` (raw TCP). This is configured in Terraform (`terraform/tunnel.tf`), not the dashboard. Do NOT add a Traefik TCP entryPoint for SSH — the tunnel handles it without one.
 17. **Alertmanager configSecret propagation takes ~1 minute:** The Prometheus Operator watches the `alertmanager-config` Secret. When updated (via SealedSecret re-seal), the operator reads it, generates a new intermediate secret, and the Alertmanager config-reloader picks it up within ~1 minute. No pod restart needed — the StatefulSet config-volume is not updated, but the generated config file in `/etc/alertmanager/config_out/` is refreshed automatically.
-18. **paperless-ngx requires Redis:** paperless-ngx depends on Redis as a Celery message broker for task processing (OCR, classification, indexing). Without Redis it will not start. The Redis Deployment runs ephemeral (no PVC) — it is a transient broker, so losing it loses only in-flight tasks, never documents. Redis is reachable only intra-namespace (`paperless-ngx-redis:6379`, no password).
-19. **paperless-ngx uid 1000 vs `local-path` ownership:** The `paperless-ngx` image runs as uid 1000 and needs write access to the data PVC. The Deployment includes `securityContext.fsGroup: 1000`; if `local-path` does not honor it and the pod crashes with permission errors, add a root `initContainer` that `chown`-s the `/data` mount.
-20. **paperless-ngx single-PVC with directory relocation:** paperless-ngx uses one PVC (`paperless-ngx-data`, `/data`) and relocates its data/media/consume directories under it via `PAPERLESS_DATA_DIR=/data/data`, `PAPERLESS_MEDIA_ROOT=/data/media`, `PAPERLESS_CONSUMPTION_DIR=/data/consume`. This keeps backup simple (one target). `local-path` default reclaim policy is `Delete` — if the app is removed from the kustomization, Flux prunes the PVC and all documents are lost. Back up `/data` out of band if it becomes important.
+18. **Papra is public-HTTPS-only (no LAN route):** Papra's auth (Better Auth) sets Secure session cookies when `APP_BASE_URL` is HTTPS, so cookie login can never work over plain HTTP `*.local`. LAN clients use `https://papra.watchtoken.org` (same pattern as nextcloud). Do not add a `papra.local` IngressRoute.
+19. **Papra signup is blocked at Traefik, not in-app:** the `AUTH_IS_REGISTRATION_ENABLED` flag only hides the UI and disables OAuth sign-up — direct `POST /api/auth/sign-up/email` stays open (verified at `@papra/app@26.6.1`). The `papra-block-signup` IngressRoute (ipAllowList `127.0.0.1/32` → 403) is the actual control; keep it. When testing the block directly, send an explicit `Host: papra.watchtoken.org` header — a `--resolve` request to port 30443 puts the port in the Host and matches no router (404).
+20. **Papra single-PVC with quiesced backup:** Papra stores SQLite db + document originals on one 10Gi `local-path` PVC (`papra-data`, `/app/app-data`, reclaim `Delete`). Removing `papra` from the root kustomization wipes all documents. Backup: commit `replicas: 0` → wait for pod termination → mount the PVC read-only in a throwaway helper pod and copy `/app/app-data` out → commit `replicas: 1`. No Papra CLI export command exists (import only) — never rely on a live SQLite file copy.
 21. **Nextcloud reverse-proxy requires `trusted_proxies` + `overwritehost` via `extraEnv`, NOT `nextcloud.host`:** Behind Traefik, Nextcloud must trust the proxy's forwarded headers. The chart's `reverse-proxy.config.php` reads env vars (`OVERWRITEHOST`, `OVERWRITECLIURL`, `TRUSTED_PROXIES`, `OVERWRITEPROTOCOL`) and writes them to `$CONFIG`. But `nextcloud.host` only feeds `NEXTCLOUD_TRUSTED_DOMAINS` — it does NOT set `overwritehost` or `trusted_proxies`. Set these explicitly under `nextcloud.extraEnv`: `OVERWRITEHOST=sync.watchtoken.org`, `OVERWRITECLIURL=https://sync.watchtoken.org`, `TRUSTED_PROXIES=10.42.0.0/16` (k3s pod CIDR). Without these, sync clients see DAV hrefs pointing at `localhost`/`http` and fail with "Files not accessible on server." Symptom confirmed: `config.php` shows `overwrite.cli.url => 'https://localhost'` and no `overwritehost`/`trusted_proxies` entries. To fix a running instance immediately (before Flux re-reconciles), run `php occ config:system:set overwritehost --value=sync.watchtoken.org` + `trusted_proxies 0 --value=10.42.0.0/16` + `overwrite.cli.url --value=https://sync.watchtoken.org` as www-data inside the pod.
 22. **Cloudflare Tunnel upload ceiling (~100 MB):** The Cloudflare free tier limits HTTP request bodies to ~100 MB through the tunnel. Large file uploads (videos, big archives) fail on the public `sync.watchtoken.org` route but work fine on LAN (`sync.local`). Photos and documents are unaffected.
 23. **Two-PVC consistent backup required:** Nextcloud has two persistent volumes (data `/var/www/html` + MariaDB). They must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`). Backing up one without the other = data loss on restore.
 24. **`overwritehost` is single-valued:** Setting it to `sync.watchtoken.org` means `.local` access generates public-host URLs for share links and WebDAV endpoints. This is expected and correct — the canonical hostname is the public one. Do not fight it with fragile workarounds.
- 23. **`local-path` Delete reclaim on all PVCs:** Same as paperless-ngx (gotcha #18) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
+ 23. **`local-path` Delete reclaim on all PVCs:** Same as papra (gotcha #20) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
  24. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
  25. **spec-frontend chart/image must be published before deploy:** The app repo (`~/Projects/spec-frontend`) publishes its chart via a `v*` tag on main (CI `publish-chart` job, `helm-pusher`-less — the registry-account secrets live in Forgejo CI). The chart as of v0.1.0 shipped an invalid pod-level `readOnlyRootFilesystem` — fixed upstream (moved to the container `securityContext`); if a freshly published chart is rejected, check that fix. The image tag equals the chart's `appVersion` (`main-<sha>`); the HelmRelease leaves `image.tag` empty to follow it. Verify with `helm pull oci://fgit.watchtoken.org/forgejo-admin/spec-frontend --version <v>`.
  26. **spec-frontend credentials are derived, not invented:** `neo4j-creds` (SealedSecret in `spec-frontend` ns) is re-sealed from the in-cluster `neo4j-auth` secret (`kubectl get secret neo4j-auth -n neo4j -o jsonpath='{.data.NEO4J_AUTH}' | base64 -d` → `neo4j/<pw>`, strip the prefix) — the plaintext never enters git or chat. The `forgejo-registry-auth` imagePullSecret is a copy of the flux-system dockerconfigjson re-sealed for the workload namespace (pull secrets must be namespace-local).
@@ -540,6 +538,54 @@ spec-frontend rollout restart deploy/spec-frontend` — a Secret update via
 > `spec-frontend-basic-auth` delta spec is archived via the `openspec archive`
 > flow so the five-key `neo4j-creds` secret and Basic Auth requirements land in
 > the main spec (`openspec/specs/spec-frontend/spec.md`).
+
+## Papra
+
+Document archiving / OCR (replaced paperless-ngx on 2026-08-31). Papra
+(papra-hq/papra) runs as a single Node container with SQLite — no Redis, no
+Celery. Pinned image `ghcr.io/papra-hq/papra:26.6.1-rootless` (tags are
+CalVer), port 1221, `strategy: Recreate` (SQLite tolerates one writer),
+uid/gid/fsGroup 1000. Raw manifests in `clusters/pk3s/papra/`.
+
+### Access
+
+| Path | Address | How |
+|---|---|---|
+| **Public** | `https://papra.watchtoken.org` | Cloudflare tunnel → Traefik websecure (wildcard cert). **The only route** — no `papra.local` exists (Better Auth Secure cookies break plain-HTTP LAN login; see gotcha #18) |
+
+Auth: Better Auth email/password; signup permanently blocked at Traefik
+(`papra-block-signup` ipAllowList → 403; gotcha #19). First user is admin.
+`AUTH_SECRET`, `OWLRELAY_API_KEY`, `INTAKE_EMAILS_WEBHOOK_SECRET` live in the
+`papra-secret` SealedSecret.
+
+### Email intake (OwlRelay)
+
+Generated intake addresses (`...@callback.email`) are created by Papra via
+the OwlRelay API, which POSTs to
+`https://papra.watchtoken.org/api/intake-emails/ingest` signed with
+`INTAKE_EMAILS_WEBHOOK_SECRET` (HMAC of the raw body, `X-Signature` header).
+**The secret is only transmitted to OwlRelay at address-creation time** — if
+the secret ever changes in `papra-secret`, delete and re-create every intake
+address (401 `Invalid webhook signature` means the stored secret is stale).
+
+### Backup
+
+Everything (SQLite db + document originals) lives on one PVC (`papra-data`,
+`/app/app-data`, local-path, **reclaim `Delete`** — gotcha #20): commit
+`replicas: 0` → wait for pod termination → mount the PVC read-only in a
+helper pod and copy `/app/app-data` out → commit `replicas: 1`. No Papra CLI
+export exists (import only).
+
+### Gotchas
+
+- **Locked PDFs are stored but not searchable:** Papra's pdf extractor
+  (pdf.js, no password callback) throws on encrypted PDFs — the original
+  uploads untouched but gets no OCR text. Unlock before uploading if search
+  matters.
+- **Papra supports SQLite/LibSQL only** — no Postgres driver; the central
+  PostgreSQL box cannot host it.
+- **Probes:** readiness `GET /api/health` (db-aware), liveness
+  `GET /api/ping`.
 
 ## Terraform Workflow
 
