@@ -36,12 +36,8 @@ spec:
               value: "true"
             - name: DOCUMENT_STORAGE_MAX_UPLOAD_SIZE
               value: "0"
-            - name: INTAKE_EMAILS_IS_ENABLED
+            - name: INGESTION_FOLDER_IS_ENABLED
               value: "true"
-            - name: INTAKE_EMAILS_DRIVER
-              value: owlrelay
-            - name: OWLRELAY_WEBHOOK_URL
-              value: https://papra.watchtoken.org/api/intake-emails/ingest
             - name: DOCUMENTS_OCR_LANGUAGES
               value: eng
             - name: AUTH_SECRET
@@ -49,22 +45,14 @@ spec:
                 secretKeyRef:
                   name: papra-secret
                   key: AUTH_SECRET
-            - name: OWLRELAY_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: papra-secret
-                  key: OWLRELAY_API_KEY
-            - name: INTAKE_EMAILS_WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: papra-secret
-                  key: INTAKE_EMAILS_WEBHOOK_SECRET
           ports:
             - containerPort: 1221
               name: http
           volumeMounts:
             - name: data
               mountPath: /app/app-data
+            - name: ingestion
+              mountPath: /app/ingestion
           resources:
             requests:
               cpu: 100m
@@ -90,3 +78,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: papra-data
+        - name: ingestion
+          hostPath:
+            path: /home/admin/papra-ingest
