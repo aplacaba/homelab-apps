@@ -7,6 +7,12 @@ data:
   50-intel-gpu.sh: |
     #!/bin/bash
     set -e
+    # OpenCL/Level Zero runtime for QSV HDR tonemap (tonemap_opencl); without
+    # these ffmpeg dies with "Failed to get number of OpenCL platforms: -1001"
+    if [ ! -e /etc/OpenCL/vendors/intel.icd ] || [ ! -e /usr/lib/x86_64-linux-gnu/libze_intel_gpu.so.1 ]; then
+      DEBIAN_FRONTEND=noninteractive apt-get update -q || true
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends intel-opencl-icd libze-intel-gpu1 intel-ocloc || true
+    fi
     if [ ! -f /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so ]; then
       echo "deb https://repositories.intel.com/gpu/ubuntu noble unified" > /etc/apt/sources.list.d/intel-gpu.list
       apt-get update -q || true

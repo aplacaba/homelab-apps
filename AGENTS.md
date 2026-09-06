@@ -829,9 +829,17 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   contract (downloads -> tv/movies on one filesystem).
 - **jellyfin GPU**: privileged container (k8s device cgroup blocks /dev/dri
   otherwise) + `configmap-jellyfin-intel-init` custom-cont-init script that
-  installs intel-media-va-driver-non-free (Intel repo) and copies system
-  libva/libdrm/iHD into /usr/lib/jellyfin-ffmpeg/lib (the bundled iHD lacks
-  Battlemage support; docker had the same failure).
+  installs `intel-opencl-icd` + `libze-intel-gpu1` + `intel-ocloc` (signed
+  Ubuntu repos — the Intel GPU repo line in the script is unsigned and only
+  covers iHD as a fallback; the LSIO base image already ships a
+  Battlemage-capable iHD) and copies system libva/libdrm/iHD into
+  /usr/lib/jellyfin-ffmpeg/lib. The OpenCL/Level Zero runtime is REQUIRED for
+  HDR→SDR tonemap with QSV: without it ffmpeg aborts with exit code 237
+  ("Failed to get number of OpenCL platforms: -1001" on
+  `-init_hw_device opencl=ocl@va`) and every transcode fails while direct
+  play/remux keeps working. Symptom after a Jellyfin upgrade to 10.11
+  (tonemap via `tonemap_opencl`). Init script re-runs on pod restart — after a
+  configmap-only change, `kubectl rollout restart deploy/jellyfin -n media`.
 - **immich DB**: central PostgreSQL 192.168.254.104, database `immich`
   (role immich, password in the sealed secret). Extensions pre-installed:
   vector 0.8.6, vchord 1.1.1 (shared_preload_libraries=vchord.so),
