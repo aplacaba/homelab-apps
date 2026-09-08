@@ -840,6 +840,17 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   play/remux keeps working. Symptom after a Jellyfin upgrade to 10.11
   (tonemap via `tonemap_opencl`). Init script re-runs on pod restart — after a
   configmap-only change, `kubectl rollout restart deploy/jellyfin -n media`.
+- **jellyfin 12.0 (image pinned `version-12.0ubu2604`)**: LSIO moved `latest`
+  to 12.0 on release day, and 12.0's DB migration is irreversible without a
+  `/config` restore — never use `:latest` here. Upgrade SOP: commit
+  `replicas: 0` + reconcile, back up `/config` via a helper pod (tar to
+  `/home/backups/jellyfin-<ver>/` on k3s-media), bump the pinned tag, commit
+  `replicas: 1`. The Deployment has no `strategy` (RollingUpdate default), so
+  a bare image bump would start the new pod against the live SQLite DB while
+  the old one still runs. 12.0 notes: `EnableLegacyAuthorization` is now
+  `false` (flag still exists as a fallback), a full library scan is required
+  after the upgrade, and seerr 3.4.1 is compatible (modern
+  `Authorization: MediaBrowser` auth, no removed routes used).
 - **immich DB**: central PostgreSQL 192.168.254.104, database `immich`
   (role immich, password in the sealed secret). Extensions pre-installed:
   vector 0.8.6, vchord 1.1.1 (shared_preload_libraries=vchord.so),
