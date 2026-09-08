@@ -856,7 +856,8 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   vector 0.8.6, vchord 1.1.1 (shared_preload_libraries=vchord.so),
   cube, earthdistance. Immich server limit 1.5Gi (1Gi OOMs on migrations).
   pg-backup.sh includes immich (tables users/assets).
-- **seerr**: config at /app/config (not /config!). Admin bootstrapped via
+- **seerr**: config at /app/config (not /config!), image pinned
+  `ghcr.io/seerr-team/seerr:v3.4.1`. Admin bootstrapped via
   DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
   the session cookie is required. The manual bootstrap originally left
   `main.mediaServerType=4` (NOT_CONFIGURED), `jellyfin.libraries=[]` and
