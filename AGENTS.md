@@ -858,7 +858,10 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   pg-backup.sh includes immich (tables users/assets).
 - **seerr**: config at /app/config (not /config!). Admin bootstrapped via
   DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
-  the session cookie is required.
+  the session cookie is required. The manual bootstrap originally left
+  `main.mediaServerType=4` (NOT_CONFIGURED), `jellyfin.libraries=[]` and
+  admin user id 1 without a `jellyfinUserId` — fixed 2026-09-08 (see the
+  seerr integration gotcha below).
 - **Backups**: migration staging at /home/backups/media-migration on the
   node (configs tar, immich dump, immich library tar).
 
@@ -923,6 +926,18 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   `pve.local`, and the HTTP route redirects to HTTPS. Clients must trust the
   generated certificate (or accept the browser warning) when opening
   `https://pve.local`; this certificate is separate from the Proxmox backend CA.
+- **seerr's manual bootstrap skipped the media-server fields**: the DB +
+  settings.json seed set the Jellyfin host/apiKey but left
+  `main.mediaServerType=4` (NOT_CONFIGURED), `jellyfin.libraries=[]`, and
+  admin user id 1 without a `jellyfinUserId`. Symptoms: no
+  `jellyfin-recently-added-scan`/`jellyfin-full-scan` jobs registered, and the
+  daily availability sync logs `An admin is not configured.`. Fix (all three
+  are required): `POST /api/v1/settings/main` `{"mediaServerType":2}`
+  (JELLYFIN=2), `GET /api/v1/settings/jellyfin/library?sync=true&enable=<ids>`,
+  and set `user.id=1.jellyfinUserId` to the Jellyfin admin's user id (DB edit
+  while the pod is stopped — no API exists for it). Restart the pod afterwards
+  so `schedule.ts` registers the Jellyfin jobs. Seerr config backup:
+  `/home/backups/seerr/seerr-config-pre-fix.tgz`.
 
 ### Node join/upgrade SOP
 
