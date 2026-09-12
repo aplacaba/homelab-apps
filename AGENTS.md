@@ -450,7 +450,7 @@ File operations run from a PVC-mounted pod (image `nouchka/sqlite3`, mount `gite
 
 ## PostgreSQL backups (192.168.254.104)
 
-The dedicated PostgreSQL box backs up both databases (`atuin`, `forgejo`) nightly at 02:30 — plus `immich`; the HRIS databases are **not yet in the nightly set** (deploy-hris section 7 is pending an on-box script update) via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
+The dedicated PostgreSQL box backs up both databases (`atuin`, `forgejo`) nightly at 02:30 — plus `immich` (HRIS not yet included; deploy-hris section 7 pending) via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
 
 ### Monthly restore test (manual)
 
@@ -607,40 +607,29 @@ export exists (import only).
 
 ## HRIS
 
-TALA HRIS — Rails 8 applicant tracking (CSC form 9) for a hospital recruitment office; the first app
-on the cluster holding real PII. Chart + image are published by the app repo (`aplacaba/tala-hris`,
-private) as `vX.Y.Z`; the HelmRelease pins the chart exactly with `image.tag: ""`, so a chart bump
-moves the image with it.
+TALA HRIS — Rails 8 applicant tracking (CSC form 9); the cluster's first app holding real PII. Chart and
+image come from the app repo (`aplacaba/tala-hris`, private) as `vX.Y.Z`; the HelmRelease pins the chart
+exactly with `image.tag: ""`, so a chart bump moves the image.
 
 | Path | Address | How |
 |---|---|---|
-| **Public** | `https://hris.alacaba.org` | CF Tunnel → Traefik websecure (per-host `Certificate hris-alacaba-org`, NOT the default TLSStore — gotcha #12) → `hris:8080` |
-| **In-cluster** | `hris.hris.svc:8080` | ClusterIP; Thruster on 8080 in front of Puma on 3000 |
+| **Public** | `https://hris.alacaba.org` | CF Tunnel → Traefik websecure (per-host `Certificate hris-alacaba-org`, not the default TLSStore — gotcha #12) → `hris:8080`; no `hris.local` (production `force_ssl`, so LAN HTTP would lose Secure cookies) |
+| **In-cluster** | `hris.hris.svc:8080` | ClusterIP; Thruster 8080 → Puma 3000 |
 
-No `hris.local` route: production runs `force_ssl`, so plain-HTTP LAN logins would lose Secure cookies
-(papra pattern, gotcha #18).
+- **DB:** `192.168.254.104`, role `hris_ats`, four databases
+  (`hris_ats_production{,_cache,_queue,_cable}`); `DB_HOST`/`DB_PORT` drive all four. Migrations run at
+  container start (`db:prepare`) → single replica, `strategy: Recreate`.
+- **Documents:** R2 bucket `tala-hris-uploads` (`terraform/r2.tf`), `ACTIVE_STORAGE_SERVICE=r2`, no PVC.
+- **Mail:** Fastmail SMTP 465 from `hris-smtp` (`From:` = the authenticated mailbox; `APP_HOST` only
+  sets link URLs). **Jobs:** Solid Queue inside Puma (`SOLID_QUEUE_IN_PUMA=true`), no worker pod.
 
-- **DB:** central PG `192.168.254.104`, role `hris_ats` (`LOGIN`, `NOSUPERUSER`, `NOCREATEDB`,
-  `NOCREATEROLE`) owning the four databases Rails 8 needs: `hris_ats_production`,
-  `hris_ats_production_cache`, `hris_ats_production_queue`, `hris_ats_production_cable`.
-  `DB_HOST`/`DB_PORT` drive all four; migrations run at container start (`db:prepare`), which is why
-  the Deployment is single-replica with `strategy: Recreate`.
-- **Documents:** R2 bucket `tala-hris-uploads` (`terraform/r2.tf`) via `ACTIVE_STORAGE_SERVICE=r2`;
-  **no PVC** — only an `emptyDir` for `/rails/tmp`.
-- **Mail:** Fastmail SMTP 465 (implicit TLS) from `hris-smtp`; the `From:` is the authenticated
-  mailbox, `APP_HOST` only supplies link URLs.
-- **Jobs:** Solid Queue runs inside Puma (`SOLID_QUEUE_IN_PUMA=true`) — one Deployment, no worker pod.
+**Secrets** (sealed, names frozen): `hris-rails-secrets`, `hris-db`, `hris-r2`, `hris-smtp`, `hris-ghcr`
+in `hris` + `ghcr-registry-auth` in `flux-system`. **Rotate = re-seal + bump `secretsChecksum`** in the
+HelmRelease — the bump is what rolls the pod.
 
-**Secrets** (all SealedSecrets, names frozen): `hris-rails-secrets`, `hris-db`, `hris-r2`, `hris-smtp`
-and `hris-ghcr` in `hris`, plus `ghcr-registry-auth` in `flux-system` for the private OCI chart pull.
-**Rotation is a two-line commit:** re-seal the secret, then bump `secretsChecksum` in the
-HelmRelease — the bump is what rolls the pod, since re-sealing alone changes no rendered manifest.
-
-**Gotchas:** (1) Cloudflare provider v5.21 cannot manage R2 versioning or version retention (dashboard
-only); `terraform/r2.tf` covers the bucket plus an abort-incomplete-multipart-uploads rule. (2) The R2
-token must be **Object Read & Write** — a read-only token still pulls and boots, so uploads fail
-silently until someone tests them. (3) The chart's `appVersion` must name a published image tag or the
-pod lands in `ImagePullBackOff`. (4) Private GHCR packages need both pull secrets (image + chart).
+**Gotchas:** (1) provider v5.21 cannot manage R2 versioning or version retention — dashboard only.
+(2) The R2 token must be Object Read & Write; a read-only token still boots, so uploads fail silently.
+(3) The chart's `appVersion` must name a published image tag, or the pod hits `ImagePullBackOff`.
 
 ## Terraform Workflow
 
