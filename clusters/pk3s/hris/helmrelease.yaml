@@ -11,7 +11,7 @@ spec:
       # Exact pin, on purpose: the image tag follows the chart's appVersion, so a
       # bump here is the whole release. Never widen this to a range for an app
       # holding applicant PII.
-      version: "0.1.0"
+      version: "0.1.1"
       sourceRef:
         kind: HelmRepository
         name: hris-charts
