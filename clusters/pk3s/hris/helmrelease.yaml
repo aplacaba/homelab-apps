@@ -53,7 +53,7 @@ spec:
     # Bump it in the SAME commit that re-seals any of the secrets above — the
     # secret's own content cannot change a rendered manifest, so without the bump
     # the pod keeps running on stale credentials.
-    secretsChecksum: "1"
+    secretsChecksum: "2"
 
     service:
       type: ClusterIP
