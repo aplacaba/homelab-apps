@@ -1,0 +1,112 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hris
+  namespace: hris
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: hris
+      # Exact pin, on purpose: the image tag follows the chart's appVersion, so a
+      # bump here is the whole release. Never widen this to a range for an app
+      # holding applicant PII.
+      version: "0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: hris-charts
+        namespace: flux-system
+  install:
+    timeout: 5m
+    remediation:
+      retries: 3
+  upgrade:
+    timeout: 5m
+    cleanupOnFail: true
+    remediation:
+      retries: 2
+      remediateLastFailure: true
+  driftDetection:
+    mode: enabled
+  values:
+    replicaCount: 1
+
+    image:
+      repository: ghcr.io/aplacaba/tala-hris
+      # Empty on purpose: the chart renders .Chart.AppVersion, so bumping the
+      # chart version above moves the image and rolls the pod.
+      tag: ""
+      pullPolicy: IfNotPresent
+
+    imagePullSecrets:
+      - name: hris-ghcr
+
+    # Every key in these secrets is injected into the container with envFrom.
+    # They are SealedSecrets in this namespace (see sealedsecret-*.yaml).
+    existingSecret:
+      - hris-rails-secrets
+      - hris-db
+      - hris-r2
+      - hris-smtp
+
+    # Rotation counter: it feeds the `checksum/secrets` pod-template annotation.
+    # Bump it in the SAME commit that re-seals any of the secrets above — the
+    # secret's own content cannot change a rendered manifest, so without the bump
+    # the pod keeps running on stale credentials.
+    secretsChecksum: "1"
+
+    service:
+      type: ClusterIP
+      port: 8080
+
+    # Routing is managed by the IngressRoutes in this directory.
+    ingress:
+      enabled: false
+
+    nodeSelector:
+      kubernetes.io/hostname: k3s-master
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      # Rails and Thruster write /rails/tmp and the Thruster cache; revisit once
+      # the app runs without a local volume.
+      readOnlyRootFilesystem: false
+      capabilities:
+        drop:
+          - ALL
+
+    # Non-secret environment only. Credentials come from `existingSecret`.
+    env:
+      HTTP_PORT: "8080"
+      TARGET_PORT: "3000"
+      STORAGE_PATH: "/rails/tmp/thruster"
+      APP_HOST: hris.alacaba.org
+      DB_HOST: "192.168.254.104"
+      DB_PORT: "5432"
+      ACTIVE_STORAGE_SERVICE: r2
+      R2_BUCKET: tala-hris-uploads
+      # TODO(account-id): fill in the Cloudflare account id before enabling the
+      # root kustomization entry — https://<account_id>.r2.cloudflarestorage.com
+      R2_ENDPOINT: https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
+      SOLID_QUEUE_IN_PUMA: "true"
+      JOB_CONCURRENCY: "1"
+      WEB_CONCURRENCY: "1"
+      RAILS_MAX_THREADS: "3"
+      RAILS_LOG_TO_STDOUT: "true"
+      RAILS_SERVE_STATIC_FILES: "true"
+      SMTP_HOST: smtp.fastmail.com
+      SMTP_PORT: "465"

@@ -1,0 +1,14 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: hris-charts
+  namespace: flux-system
+spec:
+  type: oci
+  interval: 1h
+  # The app repo publishes its own chart here (see tala-hris: charts/hris).
+  url: oci://ghcr.io/aplacaba/charts
+  # Private GHCR package: the chart pull needs a dockerconfigjson in THIS
+  # namespace (a secretRef must live next to the HelmRepository).
+  secretRef:
+    name: ghcr-registry-auth

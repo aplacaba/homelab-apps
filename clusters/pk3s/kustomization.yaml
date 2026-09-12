@@ -13,6 +13,8 @@ resources:
   - flux-monitoring
   - forgejo
   - forgejo-runner
+  # - hris   # staged, not live: enable once the app publishes its chart to GHCR and the
+  #          # credentials are sealed (see clusters/pk3s/hris/kustomization.yaml) — deploy-hris task 6.1
   - media
   - monitoring
   - neo4j
