@@ -126,3 +126,12 @@ resource "cloudflare_dns_record" "pangolin_watchtoken" {
   ttl     = 1
   proxied = false
 }
+
+resource "cloudflare_dns_record" "hris_alacaba" {
+  zone_id = data.cloudflare_zone.alacaba_org.id
+  name    = "hris"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
+  type    = "CNAME"
+  ttl     = 1
+  proxied = true
+}
