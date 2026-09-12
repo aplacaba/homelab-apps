@@ -567,6 +567,9 @@ the chart exactly (`image.tag: ""`), so a chart bump moves the image.
 **Secrets** (sealed, names frozen): `hris-rails-secrets`, `hris-db`, `hris-r2`, `hris-smtp`, `hris-ghcr`
 in `hris` + `ghcr-registry-auth` in `flux-system`. **Rotate = re-seal + bump `secretsChecksum`.**
 
+Sealing helper: `scripts/seal-hris-secrets.sh` — values come from one mode-600 file
+(`~/.secrets/hris.env`), `--bump` rolls the pod, `--verify` lists the decrypted keys.
+
 **Gotchas:** (1) provider v5.21 cannot manage R2 versioning — dashboard only. (2) The R2 token must be
 Object Read & Write; a read-only token still boots, so uploads fail silently. (3) The chart's
 `appVersion` must name a published image tag, or the pod hits `ImagePullBackOff`.
@@ -587,7 +590,7 @@ make install-hooks
 ```
 
 Hooks in `.githooks/pre-commit` check `terraform fmt` on staged `.tf` files.
-SealedSecrets are generated locally with `scripts/seal-and-commit.sh`.
+SealedSecrets are generated locally with `kubeseal` (see Secret Management). The HRIS set has a helper: `scripts/seal-hris-secrets.sh`.
 
 ### Grafana dashboards (Terraform)
 
