@@ -8,13 +8,14 @@ resources:
   - certificate.yaml
   - ingressroute.yaml
   - ingressroute-https.yaml
-  - sealedsecret-rails-secrets.yaml
-  # TODO: the remaining four credentials cannot be sealed until their plaintext
-  # exists. Add each here as it is created (names are frozen — strict-scope
-  # SealedSecrets bind to namespace + name):
-  #   - sealedsecret-db.yaml    (HRIS_ATS_DATABASE_PASSWORD — generated on the PG box)
-  #   - sealedsecret-r2.yaml    (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY — dashboard token)
-  #   - sealedsecret-ghcr.yaml  (.dockerconfigjson — ghcr.io read token)
-  #   - sealedsecret-smtp.yaml  (SMTP_USERNAME, SMTP_PASSWORD — Fastmail app password)
-  # ghcr-registry-auth belongs to flux-system (the chart pull secret), so it is
-  # applied by that namespace's own workflow, not listed here.
+  # Credentials. Every one of these is a SealedSecret: the plaintext never
+  # existed in this repository, and each was piped straight into kubeseal.
+  - sealedsecret-rails-secrets.yaml # RAILS_MASTER_KEY
+  - sealedsecret-db.yaml            # HRIS_ATS_DATABASE_PASSWORD
+  - sealedsecret-r2.yaml            # R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+  - sealedsecret-smtp.yaml          # SMTP_USERNAME, SMTP_PASSWORD
+  - sealedsecret-ghcr.yaml          # .dockerconfigjson for the private image
+  # The chart comes from a private GHCR package, and a HelmRepository's secretRef
+  # must live in its own namespace — so this one decrypts into flux-system. Flux
+  # simply retries the chart fetch until the controller has created it.
+  - sealedsecret-registry-auth.yaml # .dockerconfigjson in flux-system

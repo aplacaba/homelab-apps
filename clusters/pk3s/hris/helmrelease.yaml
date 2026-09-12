@@ -99,9 +99,7 @@ spec:
       DB_PORT: "5432"
       ACTIVE_STORAGE_SERVICE: r2
       R2_BUCKET: tala-hris-uploads
-      # TODO(account-id): fill in the Cloudflare account id before enabling the
-      # root kustomization entry — https://<account_id>.r2.cloudflarestorage.com
-      R2_ENDPOINT: https://REPLACE_WITH_ACCOUNT_ID.r2.cloudflarestorage.com
+      R2_ENDPOINT: https://6ff72f4b3f7f55c6b93aa328dabb3aa3.r2.cloudflarestorage.com
       SOLID_QUEUE_IN_PUMA: "true"
       JOB_CONCURRENCY: "1"
       WEB_CONCURRENCY: "1"
