@@ -3,8 +3,8 @@
 # hris-chart-update.sh — find a newer HRIS Helm chart release that is still
 # below 1.0.0, and optionally move the HelmRelease pin onto it.
 #
-#   GHCR_TOKEN=<pat> ./scripts/hris-chart-update.sh           # report only
-#   GHCR_TOKEN=<pat> ./scripts/hris-chart-update.sh --apply    # rewrite the pin
+#   GHCR_TOKEN=<pat> ./.github/scripts/hris-chart-update.sh           # report only
+#   GHCR_TOKEN=<pat> ./.github/scripts/hris-chart-update.sh --apply    # rewrite the pin
 #
 # Why a ceiling: the cluster runs pre-1.0 HRIS releases without review, because
 # the app is still moving fast and every chart version is a small delta. 1.0.0 is
@@ -28,7 +28,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 HELMRELEASE="clusters/pk3s/hris/helmrelease.yaml"
@@ -42,7 +42,7 @@ APPLY=0
 
 usage() {
   cat <<'EOF'
-Usage: GHCR_TOKEN=<pat> scripts/hris-chart-update.sh [--apply]
+Usage: GHCR_TOKEN=<pat> .github/scripts/hris-chart-update.sh [--apply]
 
   --apply   rewrite the chart `version:` pin in clusters/pk3s/hris/helmrelease.yaml
             (without it the script only reports what it found)

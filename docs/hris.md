@@ -18,7 +18,7 @@ it to a semver range.
 ## How it runs
 
 `.github/workflows/hris-chart-update.yml` — cron every 6 hours
-(`17 */6 * * *`) plus `workflow_dispatch` — runs `scripts/hris-chart-update.sh`:
+(`17 */6 * * *`) plus `workflow_dispatch` — runs `.github/scripts/hris-chart-update.sh`:
 
 1. read the `version:` pin out of `clusters/pk3s/hris/helmrelease.yaml`;
 2. list the published tags of `ghcr.io/aplacaba/charts/hris`;
@@ -85,10 +85,10 @@ as things stand `GH_PAT` must be able to open the PR itself).
 
 ```bash
 # report only — prints the pin, the newest chart below 1.0.0, and the gates
-GHCR_TOKEN=<pat with read:packages> ./scripts/hris-chart-update.sh
+GHCR_TOKEN=<pat with read:packages> ./.github/scripts/hris-chart-update.sh
 
 # rewrite the pin in place (the script only edits the file; committing is yours)
-GHCR_TOKEN=<pat with read:packages> ./scripts/hris-chart-update.sh --apply
+GHCR_TOKEN=<pat with read:packages> ./.github/scripts/hris-chart-update.sh --apply
 ```
 
 The same token the cluster uses to pull the chart (`GHCR_TOKEN` in

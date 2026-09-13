@@ -567,12 +567,13 @@ the chart exactly (`image.tag: ""`), so a chart bump moves the image.
 **Secrets** (sealed, names frozen): `hris-rails-secrets`, `hris-db`, `hris-r2`, `hris-smtp`, `hris-ghcr`
 in `hris` + `ghcr-registry-auth` in `flux-system`. **Rotate = re-seal + bump `secretsChecksum`.**
 
-Sealing helper: `scripts/seal-hris-secrets.sh` — values come from one mode-600 file
-(`~/.secrets/hris.env`), `--bump` rolls the pod, `--verify` lists the decrypted keys.
+Sealing helper: `scripts/seal-hris-secrets.sh` (local, **untracked** — `scripts/` is gitignored on
+purpose) — values come from one mode-600 file (`~/.secrets/hris.env`), `--bump` rolls the pod,
+`--verify` lists the decrypted keys.
 
 ### Pre-1.0 chart auto-update
 
-`.github/workflows/hris-chart-update.yml` (cron 6h + dispatch) runs `scripts/hris-chart-update.sh`,
+`.github/workflows/hris-chart-update.yml` (cron 6h + dispatch) runs `.github/scripts/hris-chart-update.sh`,
 which proposes a bump of the exact `version:` pin whenever GHCR has a newer stable chart **below
 1.0.0** — as a PR on `automation/hris-chart-bump`, never by widening the pin to a range. It gates on
 the chart being pullable and on the candidate's `appVersion` image tag already existing in
@@ -603,7 +604,8 @@ make install-hooks
 ```
 
 Hooks in `.githooks/pre-commit` check `terraform fmt` on staged `.tf` files.
-SealedSecrets are generated locally with `kubeseal` (see Secret Management). The HRIS set has a helper: `scripts/seal-hris-secrets.sh`.
+SealedSecrets are generated locally with `kubeseal` (see Secret Management). The HRIS set has a
+helper, `scripts/seal-hris-secrets.sh`, which is local-only (`scripts/` is untracked — see `.gitignore`).
 
 ### Grafana dashboards (Terraform)
 

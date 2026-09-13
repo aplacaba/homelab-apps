@@ -13,3 +13,6 @@
 openspec/
 docs/superpowers/
 .opencode/
+
+# Local operator scripts (kept on disk, never tracked)
+/scripts/

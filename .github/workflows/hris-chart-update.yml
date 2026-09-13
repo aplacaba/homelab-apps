@@ -52,7 +52,7 @@ jobs:
           # way the token needs read:packages (classic PAT) or Packages: Read
           # (fine-grained PAT) on the private aplacaba/charts package.
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GH_PAT }}
-        run: ./scripts/hris-chart-update.sh
+        run: ./.github/scripts/hris-chart-update.sh
 
       - name: Job summary
         if: always()
@@ -116,7 +116,7 @@ jobs:
             exit 0
           fi
 
-          ./scripts/hris-chart-update.sh --apply
+          ./.github/scripts/hris-chart-update.sh --apply
 
           if git diff --quiet -- "$file"; then
             echo "The pin already points at ${CANDIDATE}; nothing to commit."
