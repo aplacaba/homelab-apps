@@ -570,9 +570,22 @@ in `hris` + `ghcr-registry-auth` in `flux-system`. **Rotate = re-seal + bump `se
 Sealing helper: `scripts/seal-hris-secrets.sh` — values come from one mode-600 file
 (`~/.secrets/hris.env`), `--bump` rolls the pod, `--verify` lists the decrypted keys.
 
+### Pre-1.0 chart auto-update
+
+`.github/workflows/hris-chart-update.yml` (cron 6h + dispatch) runs `scripts/hris-chart-update.sh`,
+which proposes a bump of the exact `version:` pin whenever GHCR has a newer stable chart **below
+1.0.0** — as a PR on `automation/hris-chart-bump`, never by widening the pin to a range. It gates on
+the chart being pullable and on the candidate's `appVersion` image tag already existing in
+`ghcr.io/aplacaba/tala-hris` (gotcha 3 below), so a bump cannot land an unpublished image. **1.0.0 is
+the freeze line**: past it the workflow only reports, and a major release gets a deliberate human bump.
+
+Runbook — gates, freeze behaviour, workflow secrets (`GHCR_READ_TOKEN`/`GH_PAT` need
+`read:packages`) and local dry runs: [docs/hris.md](docs/hris.md).
+
 **Gotchas:** (1) provider v5.21 cannot manage R2 versioning — dashboard only. (2) The R2 token must be
 Object Read & Write; a read-only token still boots, so uploads fail silently. (3) The chart's
-`appVersion` must name a published image tag, or the pod hits `ImagePullBackOff`.
+`appVersion` must name a published image tag, or the pod hits `ImagePullBackOff` — the auto-update
+workflow verifies this before it proposes a bump.
 
 ## Terraform Workflow
 
