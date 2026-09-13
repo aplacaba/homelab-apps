@@ -8,17 +8,23 @@ spec:
   chart:
     spec:
       chart: hris
-      # Flux-native pre-1.0 tracking: helm-controller resolves the newest
-      # published tag inside this range on every reconcile, so a chart release
-      # rolls out without a commit here. 1.0.0 is the ceiling on purpose — a
-      # major release gets a deliberate manual bump to an exact version.
+      # Flux-native pre-1.0 tracking: `0.x` resolves to the newest published 0.y
+      # tag, so a chart release rolls out without a commit here. The shorthand
+      # matches the other charts in this repo (cv-datastar `0.3.x`,
+      # forgejo-runner `0.7.x`) and is the same constraint as `>=0.1.0 <1.0.0`.
+      # 1.0.0 is the ceiling on purpose — a major release gets a deliberate
+      # manual bump to an exact version.
+      #
+      # How quickly a release is noticed is NOT decided here: the range is
+      # resolved against the HelmRepository's tag listing, so `interval: 10m` on
+      # `hris-charts` is the knob.
       #
       # Accepted trade-off: unlike an exact pin this gives no review step and no
       # check that the chart's appVersion image is published yet (gotcha 3
       # below); a chart that outruns its image sits in ImagePullBackOff until
       # the image lands. `image.tag` stays empty — the chart's appVersion picks
       # the image, so the resolved chart version is the whole release.
-      version: ">=0.1.0 <1.0.0"
+      version: "0.x"
       sourceRef:
         kind: HelmRepository
         name: hris-charts
