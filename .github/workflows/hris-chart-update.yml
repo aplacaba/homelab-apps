@@ -28,6 +28,9 @@ concurrency:
 
 permissions:
   contents: read
+  # Only needed for the fallback below: if GH_PAT cannot open PRs (fine-grained
+  # tokens need Pull requests: write for that), the workflow token takes over.
+  pull-requests: write
 
 jobs:
   check:
@@ -83,6 +86,8 @@ jobs:
         if: steps.detect.outputs.candidate != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          # gh prefers GH_TOKEN; the fallback commands override it explicitly.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GH_PAT }}
           CURRENT: ${{ steps.detect.outputs.current }}
           CANDIDATE: ${{ steps.detect.outputs.candidate }}
@@ -145,10 +150,13 @@ jobs:
           } > /tmp/pr-body.md
 
           if [[ "$pr_state" == "OPEN" ]]; then
-            gh pr edit "$pr_number" --title "$title" --body-file /tmp/pr-body.md
+            gh pr edit "$pr_number" --title "$title" --body-file /tmp/pr-body.md ||
+              GH_TOKEN="$GITHUB_TOKEN" gh pr edit "$pr_number" --title "$title" --body-file /tmp/pr-body.md
             echo "Updated PR #${pr_number} to ${CANDIDATE}." >> "$GITHUB_STEP_SUMMARY"
           else
             gh pr create --base main --head "$branch" \
-              --title "$title" --body-file /tmp/pr-body.md
+              --title "$title" --body-file /tmp/pr-body.md ||
+              GH_TOKEN="$GITHUB_TOKEN" gh pr create --base main --head "$branch" \
+                --title "$title" --body-file /tmp/pr-body.md
             echo "Opened a bump PR for ${CANDIDATE}." >> "$GITHUB_STEP_SUMMARY"
           fi
