@@ -552,8 +552,8 @@ Runbook — ingestion folder, backup procedure, probes and gotchas: [docs/papra.
 ## HRIS
 
 TALA HRIS — Rails 8 applicant tracking (CSC form 9), the cluster's first app holding real PII. Chart +
-image are published by the app repo (`aplacaba/tala-hris`, private) as `vX.Y.Z`; the HelmRelease pins
-the chart exactly (`image.tag: ""`), so a chart bump moves the image.
+image are published by the app repo (`aplacaba/tala-hris`, private) as `vX.Y.Z`; the HelmRelease
+follows the whole pre-1.0 line (`image.tag: ""`), so the resolved chart version is the release.
 
 - **Public:** `https://hris.alacaba.org` → CF Tunnel → Traefik websecure (per-host
   `Certificate hris-alacaba-org`, not the default TLSStore — gotcha #12) → `hris:8080`. No `hris.local`
@@ -571,22 +571,30 @@ Sealing helper: `scripts/seal-hris-secrets.sh` (local, **untracked** — `script
 purpose) — values come from one mode-600 file (`~/.secrets/hris.env`), `--bump` rolls the pod,
 `--verify` lists the decrypted keys.
 
-### Pre-1.0 chart auto-update
+### Chart version policy (pre-1.0)
 
-`.github/workflows/hris-chart-update.yml` (cron 6h + dispatch) runs `.github/scripts/hris-chart-update.sh`,
-which proposes a bump of the exact `version:` pin whenever GHCR has a newer stable chart **below
-1.0.0** — as a PR on `automation/hris-chart-bump`, never by widening the pin to a range. It gates on
-the chart being pullable and on the candidate's `appVersion` image tag already existing in
-`ghcr.io/aplacaba/tala-hris` (gotcha 3 below), so a bump cannot land an unpublished image. **1.0.0 is
-the freeze line**: past it the workflow only reports, and a major release gets a deliberate human bump.
+The HelmRelease carries a **semver range**, not a pin: `version: ">=0.1.0 <1.0.0"`. helm-controller
+resolves the newest published tag inside it on every reconcile, so a chart release rolls out on its
+own while the app is pre-1.0. **1.0.0 is the ceiling** — the range is the whole auto-update policy,
+and a 1.0.0 (or later) release needs a deliberate manual bump to an exact version.
 
-Runbook — gates, freeze behaviour, workflow secrets (`GHCR_READ_TOKEN`/`GH_PAT` need
-`read:packages`) and local dry runs: [docs/hris.md](docs/hris.md).
+Two consequences to keep in mind:
+
+- **No review step and no image gate.** An exact pin plus a PR could be checked before merging; a
+  range cannot. The chart's `appVersion` names the image tag, so a chart published ahead of its image
+  lands in `ImagePullBackOff` until the image appears (gotcha 3) — the fix is to push the image, not
+  to intervene in the cluster.
+- **Git no longer records the deployed version.** `version` is a range, so "what is running" is a
+  question for `kubectl -n hris get helmrelease hris -o jsonpath='{.status.lastAttemptedRevision}'`
+  (or the pod's image tag), not for this file.
+
+If a release needs holding back, that is the moment to pin the exact version here (and the moment to
+consider whether the 0.x line is still the right home for this app).
 
 **Gotchas:** (1) provider v5.21 cannot manage R2 versioning — dashboard only. (2) The R2 token must be
 Object Read & Write; a read-only token still boots, so uploads fail silently. (3) The chart's
-`appVersion` must name a published image tag, or the pod hits `ImagePullBackOff` — the auto-update
-workflow verifies this before it proposes a bump.
+`appVersion` must name a published image tag, or the pod hits `ImagePullBackOff` — nothing checks this
+for you under the range, so publish the image before tagging the chart release.
 
 ## Terraform Workflow
 
