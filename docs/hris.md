@@ -59,15 +59,27 @@ so "not this one" and "not ever" stay distinguishable.
 
 ## Secrets
 
-| Secret | Needs | Used for |
-|---|---|---|
-| `GH_PAT` | `contents: write` on this repo | pushing the bump branch + opening the PR (a `GITHUB_TOKEN` push would not trigger other workflows) |
-| `GHCR_READ_TOKEN` | `read:packages` on the private `aplacaba/charts` package | listing chart tags / reading the chart layer |
-| `GH_PAT` (fallback) | same as above | used when `GHCR_READ_TOKEN` is unset |
+The workflow runs off `GH_PAT` alone:
 
-`read:packages` is a **classic** PAT scope; a fine-grained PAT needs
-*Packages: Read*. A `repo`-scoped token alone is not enough — GHCR answers the
-tag list with `permission_denied`.
+| Capability | On | Why |
+|---|---|---|
+| `contents: write` | `GH_PAT`, this repo | pushing the bump branch (a `GITHUB_TOKEN` push would not trigger Flux's webhook) |
+| `pull requests: write` | `GH_PAT`, this repo | opening/refreshing the bump PR |
+| `read:packages` | `GH_PAT`, the private `aplacaba/charts` package | listing chart tags and reading the chart layer |
+
+`read:packages` is a **classic** PAT scope, and a `repo`-scoped token alone is
+not enough — GHCR answers the tag list with `permission_denied`. A fine-grained
+PAT instead needs *Contents: Read and write*, *Pull requests: Read and write*
+and *Packages: Read*. Editing the scopes of an existing PAT does not change its
+value, so the repo secret stays valid.
+
+The registry read also accepts a dedicated `GHCR_READ_TOKEN` (used when set,
+`GH_PAT` otherwise) if you would rather keep package access off the main token.
+
+If `GH_PAT` cannot open PRs, the workflow retries the `gh pr create`/`gh pr edit`
+with the workflow token — that path needs the repository setting *Allow GitHub
+Actions to create and approve pull requests* (currently **off** in this repo, so
+as things stand `GH_PAT` must be able to open the PR itself).
 
 ## Running it by hand
 
