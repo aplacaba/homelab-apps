@@ -281,7 +281,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `actual-budget` | Actual Budget 26.8, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
 | `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
 | `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
-| `hris` | TALA HRIS (Rails 8), chart range `>=0.1.0 <1.0.0`, 4 external PG databases | public `hris.alacaba.org` |
+| `hris` | TALA HRIS (Rails 8), chart range `0.x`, 4 external PG databases | public `hris.alacaba.org` |
 | `media` | jellyfin, seerr, immich 3.0 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
 | `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.7 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
 | `neo4j` | Neo4j 5.26.28 Community, pinned to `k3s-master` | LAN `neo4j.local`, Bolt NodePort 30087 |
@@ -650,12 +650,13 @@ purpose) — values come from one mode-600 file (`~/.secrets/hris.env`), `--bump
 
 ### Chart version policy (pre-1.0)
 
-The HelmRelease carries a **semver range**, not a pin: `version: ">=0.1.0 <1.0.0"`. helm-controller
-resolves the newest published tag inside it on every reconcile, so a chart release rolls out on its
-own while the app is pre-1.0. **1.0.0 is the ceiling** — the range is the whole auto-update policy,
-and a 1.0.0 (or later) release needs a deliberate manual bump to an exact version.
+The HelmRelease carries a **semver range**, not a pin: `version: "0.x"` — the shorthand the other
+charts here use (`cv-datastar` `0.3.x`, `forgejo-runner` `0.7.x`), equal to `>=0.1.0 <1.0.0`.
+helm-controller resolves the newest published tag inside it, so a chart release rolls out on its own
+while the app is pre-1.0. **1.0.0 is the ceiling** — the range is the whole auto-update policy, and a
+1.0.0 (or later) release needs a deliberate manual bump to an exact version.
 
-Two consequences to keep in mind:
+Three consequences to keep in mind:
 
 - **No review step and no image gate.** An exact pin plus a PR could be checked before merging; a
   range cannot. The chart's `appVersion` names the image tag, so a chart published ahead of its image
@@ -664,6 +665,12 @@ Two consequences to keep in mind:
 - **Git no longer records the deployed version.** `version` is a range, so "what is running" is a
   question for `kubectl -n hris get helmrelease hris -o jsonpath='{.status.lastAttemptedRevision}'`
   (or the pod's image tag), not for this file.
+- **How fast a release is noticed is set by the HelmRepository, not the range.** The range is resolved
+  against the `hris-charts` tag listing, so its `interval: 10m` is the knob. With the original `1h`,
+  chart 0.1.2 (published 04:26) was still unseen at 04:52 — the previous listing had run at 04:11 and
+  the range had resolved correctly, it simply had not looked again. That looked exactly like a broken
+  range; it was not. If you need one now, force a re-list with
+  `kubectl annotate helmchart.source.toolkit.fluxcd.io hris-hris -n flux-system reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite`.
 
 If a release needs holding back, that is the moment to pin the exact version here (and the moment to
 consider whether the 0.x line is still the right home for this app).
