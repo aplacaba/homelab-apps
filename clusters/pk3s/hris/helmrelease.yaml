@@ -8,6 +8,14 @@ spec:
   chart:
     spec:
       chart: hris
+      # The knob that actually governs pickup speed: for an OCI chart the tag
+      # listing that resolves the range happens on the HelmChart object Flux
+      # creates, and that object's interval comes from here — NOT from the
+      # HelmRepository's interval (verified 2026-09-13: the repository was set to
+      # 10m while the HelmChart stayed at 1h). At the 1h default, a chart
+      # published just after a listing could sit unseen for most of an hour,
+      # which is indistinguishable from a range that does not resolve.
+      interval: 1m
       # Flux-native pre-1.0 tracking: `0.x` resolves to the newest published 0.y
       # tag, so a chart release rolls out without a commit here. The shorthand
       # matches the other charts in this repo (cv-datastar `0.3.x`,

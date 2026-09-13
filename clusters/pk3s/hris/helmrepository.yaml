@@ -5,13 +5,12 @@ metadata:
   namespace: flux-system
 spec:
   type: oci
-  # How often the OCI tag list is re-read. This, not the semver range, is what
-  # governs how fast a new chart release is noticed — the HelmRelease resolves its
-  # range against this listing. At 1h a release published just after a listing sat
-  # unseen for most of an hour (observed 2026-09-13 with chart 0.1.2). 10m costs one
-  # tag listing per interval; the chart itself is only pulled when the resolved
-  # version changes.
-  interval: 10m
+  # Repository-level reconcile. For an OCI repository there is no index artifact to
+  # refresh, so this is NOT what re-lists the chart's tags — that happens on the
+  # HelmChart object, whose interval comes from the HelmRelease's
+  # `chart.spec.interval` (verified 2026-09-13: this field went to 10m while the
+  # HelmChart stayed at 1h). Left at the hourly default accordingly.
+  interval: 1h
   # The app repo publishes its own chart here (see tala-hris: charts/hris).
   url: oci://ghcr.io/aplacaba/charts
   # Private GHCR package: the chart pull needs a dockerconfigjson in THIS
