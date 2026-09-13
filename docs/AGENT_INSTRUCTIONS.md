@@ -665,11 +665,13 @@ Three consequences to keep in mind:
 - **Git no longer records the deployed version.** `version` is a range, so "what is running" is a
   question for `kubectl -n hris get helmrelease hris -o jsonpath='{.status.lastAttemptedRevision}'`
   (or the pod's image tag), not for this file.
-- **How fast a release is noticed is set by the HelmRepository, not the range.** The range is resolved
-  against the `hris-charts` tag listing, so its `interval: 10m` is the knob. With the original `1h`,
-  chart 0.1.2 (published 04:26) was still unseen at 04:52 — the previous listing had run at 04:11 and
-  the range had resolved correctly, it simply had not looked again. That looked exactly like a broken
-  range; it was not. If you need one now, force a re-list with
+- **How fast a release is noticed is set by the HelmRelease, not the range.** For an OCI chart the tag
+  listing that resolves the range runs on the `HelmChart` object Flux creates, and that object's
+  interval comes from `spec.chart.spec.interval` — **`1m` for hris**, so a published chart is picked up
+  within about a minute. The `HelmRepository`'s own interval is *not* the knob: setting it to 10m left
+  the HelmChart at `1h` (verified 2026-09-13), and at that default chart 0.1.2 (published 04:26) was
+  still unseen at 04:52 even though the range had resolved correctly — it simply had not looked again,
+  which is indistinguishable from a broken range. To force a re-list right now:
   `kubectl annotate helmchart.source.toolkit.fluxcd.io hris-hris -n flux-system reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite`.
 
 If a release needs holding back, that is the moment to pin the exact version here (and the moment to
