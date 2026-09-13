@@ -2,21 +2,23 @@
 
 ## Project Overview
 
-GitOps repository for a **k3s v1.36** homelab cluster managed by **Flux Operator**.
-The cluster syncs from this repo (`github.com/aplacaba/homelab-apps.git`) at `./clusters/pk3s`.
+GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Flux Operator**
+(FluxInstance `flux`, distribution 2.8.x). The cluster syncs from this repo
+(`github.com/aplacaba/homelab-apps.git`) at `./clusters/pk3s`.
 
 | Aspect | Detail |
 |---|---|
-| **Cluster** | pk3s — single-node k3s |
-| **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub |
-| **Ingress** | Traefik v3 with IngressRoute CRD, NodePort 30080/30443 |
-| **TLS** | cert-manager + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
+| **Cluster** | pk3s — `k3s-master` (192.168.254.50, control plane) + `k3s-media` (192.168.254.109, label/taint `media=yes`); k3s v1.36.4+k3s1 on Debian 13 (trixie) |
+| **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub; controllers `source`, `kustomize`, `helm`, `notification` |
+| **Sync cadence** | GitRepository polls every **1m**, root Kustomization re-applies every **10m** (`prune: true`), each HelmRelease reconciles on its own interval (1h) |
+| **Ingress** | Traefik v3.7 (chart 41.4.0) with IngressRoute CRD, NodePort 30080/30443 |
+| **TLS** | cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
-| **Tunnel** | Cloudflare Tunnel (cloudflared) for public `.watchtoken.org`, `alacaba.org`, `cv.alacaba.org`, and `ssh.watchtoken.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). |
-| **Secrets** | SealedSecrets (`sealed-secrets` controller) — encrypted at rest, master key backed up offline |
+| **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `history.watchtoken.org`, `spec.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
+| **Secrets** | SealedSecrets (`sealed-secrets` chart 2.5.19, controller 0.31.0) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
-| **Storage** | `local-path` storage class (k3s built-in) |
-| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry. SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
+| **Storage** | `local-path` (k3s built-in, master) + `media-local-path` (dedicated provisioner pinned to `k3s-media`) |
+| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry (Forgejo 15.0.6). SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
 
 ## GitOps Workflow — git first, never manual kubectl
 
@@ -27,7 +29,9 @@ deactivate an app (see Media Stack Rollback); commit `replicas: 0` instead.
 `flux suspend/resume` is the only sanctioned manual action (migrations only).
 
 1. Edit manifests under `clusters/pk3s/<app>/`, commit, push.
-2. Wait for Flux's periodic sync (1h) — do NOT force a reconcile. Watch it land:
+2. Let Flux pick it up — the GitRepository polls every **1m** and the root Kustomization re-applies
+   every **10m**, so a push normally lands within a minute or two. Do NOT force a reconcile just to
+   speed it up; watch it land instead:
    ```bash
    flux get kustomization flux-system -n flux-system
    ```
@@ -40,15 +44,29 @@ change must land now (e.g. verifying a fix, un-sticking a failed sync).
 ## Directory Structure
 
 ```
+AGENTS.md                      # short entry point loaded as workspace instructions
+docs/
+├── AGENT_INSTRUCTIONS.md      # ← this guide
+├── papra.md                   # Papra runbook (ingestion, backup, probes)
+├── cv-datastar-commands.md    # CV site release commands
+├── patterns.md                # Reusable manifest patterns
+├── authentik-forward-auth.md  # LEGACY — Authentik was removed; kept for history
+└── superpowers/               # gitignored design docs/plans
+.github/workflows/
+└── terraform-cloudflare.yml   # fmt/validate/plan/apply on terraform/** (GitHub Actions)
+
 terraform/
-├── dns.tf              # Cloudflare DNS records (Terraform)
+├── dns.tf              # Cloudflare DNS records
 ├── main.tf             # Cloudflare tunnel & vars
-├── providers.tf         # Cloudflare provider + S3 backend
-├── tokens.tf            # cert-manager API tokens
-├── tunnel.tf            # Cloudflare tunnel ingress config
-├── zone-settings.tf     # Zone security settings
-├── Makefile             # Lint, fmt-check, validate (both roots)
-└── grafana/             # Grafana dashboard provisioning (local state)
+├── providers.tf        # Cloudflare provider + S3 backend
+├── tokens.tf           # cert-manager API tokens
+├── tunnel.tf           # Cloudflare tunnel ingress config
+├── zone-settings.tf    # Zone security settings
+├── r2.tf               # R2 bucket for HRIS uploads
+├── outputs.tf          # Terraform outputs
+├── Makefile            # Lint, fmt-check, validate (both roots)
+├── scripts/            # seal-and-commit.sh helper
+└── grafana/            # Grafana dashboard provisioning (local state)
     ├── providers.tf
     ├── variables.tf
     ├── bootstrap.tf
@@ -59,27 +77,28 @@ terraform/
 
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
-├── atuin/                     # Atuin shell history sync server (raw manifests, external PostgreSQL at 192.168.254.104)
-├── actual-budget/             # Actual Budget — personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
-├── cert-manager/              # cert-manager + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
+├── atuin/                     # Atuin 18.17 shell history sync (raw manifests, external PostgreSQL at 192.168.254.104) — public history.watchtoken.org
+├── actual-budget/             # Actual Budget 26.8 personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
+├── cert-manager/              # cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
-├── cv-datastar/               # CV site — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (Helm chart, OCI registry)
-├── floci/                     # FLOCI tool (raw manifests)
-├── flux-dashboard/            # Flux web UI (raw manifests)
+├── cv-datastar/               # CV site, chart 0.3.0 — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (OCI registry)
+├── floci/                     # FLOCI tool (raw manifests, `floci/floci:latest`) — LAN floci.local
+├── flux-dashboard/            # Flux web UI (raw manifests) — LAN fluxops.local
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
-├── forgejo/                   # Git + Actions + Registry (Helm chart 17.1.4, external PostgreSQL)
-├── forgejo-runner/            # CI runner (Helm chart)
+├── forgejo/                   # Git + Actions + Registry (chart 17.1.4 → Forgejo 15.0.6, external PostgreSQL) — fgit.watchtoken.org
+├── forgejo-runner/            # CI runner (chart 0.7.6 → runner 12.7.3 + DinD)
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
-├── monitoring/                # Prometheus + Loki + Grafana + Flux alerts (Helm charts)
-├── neo4j/                     # Neo4j graph database — backend for a personal app (Helm chart 5.26.28)
-├── nextcloud/                 # File sync & share (Helm chart + MariaDB/Redis subcharts)
-├── pangolin/                  # Pangolin newt tunnel agent → VPS relay for public jellyfin/seerr (Helm chart, no ingress)
-├── papra/                     # Document archiving / OCR (raw manifests, SQLite on PVC) — public papra.watchtoken.org
+├── media/                     # Media stack on the k3s-media node (immich chart 0.13.1 + raw manifests) — all LAN-only *.local
+├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.0.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
+├── neo4j/                     # Neo4j graph database (chart 5.26.28) — LAN neo4j.local + NodePort 30087
+├── nextcloud/                 # File sync & share (chart 9.2.6 → Nextcloud 34.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
+├── pangolin/                  # Pangolin newt agent 1.12.3 → VPS relay for public jellyfin/seerr (chart 1.4.0, no ingress)
+├── papra/                     # Document archiving / OCR (raw manifests, Papra 26.6.1 on a 10Gi PVC) — public papra.watchtoken.org, no LAN route
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
-├── sealed-secrets/            # SealedSecrets controller (Bitnami chart, decrypts in-cluster)
-├── spec-frontend/             # Read-only Neo4j story-graph browser — LAN spec-frontend.local, public spec.watchtoken.org (Helm chart, OCI registry)
-├── traefik/                   # Ingress controller (Helm chart)
-└── watcharr/                  # Media watch list / tracker (raw manifests, SQLite) — LAN watcharr.local
+├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
+├── spec-frontend/             # Read-only Neo4j story-graph browser (chart 0.2.4) — LAN spec-frontend.local, public spec.watchtoken.org
+├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
+└── watcharr/                  # Media watch list / tracker 4.2.1 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
 ```
 
 ## App Deployment Pattern
@@ -193,6 +212,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `nextcloud` | default | `https://nextcloud.github.io/helm` | nextcloud |
 | `neo4j` | default | `https://neo4j.github.io/helm-charts` | neo4j |
 | `fossorial` | default | `https://charts.fossorial.io` | pangolin (newt) |
+| `immich` | OCI | `oci://ghcr.io/immich-app/immich-charts` | media (immich) |
 | `hris-charts` | OCI | `oci://ghcr.io/aplacaba/charts` | hris (needs `ghcr-registry-auth` in flux-system) |
 
 ## Secret Management (SealedSecrets)
@@ -245,40 +265,37 @@ recoverable after a rebuild.
 
 ### Cluster layout
 
-```
-┌───────────────┬──────────────────────────────────────────────────┐
-│ flux-system   │ Flux Operator controllers                        │
-│               │ GitRepository → Kustomization → HelmRelease      │
-├───────────────┼──────────────────────────────────────────────────┤
-│ traefik       │ Ingress controller (NodePort 30080/30443)        │
-├───────────────┼──────────────────────────────────────────────────┤
-│ cloudflared   │ Cloudflare Tunnel (token-based, no config)       │
-│               │ Routes public DNS → internal services            │
-├───────────────┼──────────────────────────────────────────────────┤
-│ forgejo       │ Git server + Actions + OCI Container Registry    │
-│               │ Service: forgejo-http:3000                       │
-│               │ Service: forgejo-ssh:22 (NodePort 30022)         │
-│               │ Registry: https://fgit.watchtoken.org/v2/        │
-│               │ DB: external PostgreSQL 18.3 at 192.168.254.104  │
-├───────────────┼──────────────────────────────────────────────────┤
-│ atuin         │ Shell history sync server                        │
-│               │ Service: atuin:8888                              │
-│               │ Public: history.watchtoken.org                   │
-│               │ DB: external PostgreSQL at 192.168.254.104       │
-├───────────────┼──────────────────────────────────────────────────┤
-│ monitoring    │ Prometheus, Loki, Grafana, Flux alerting         │
-├───────────────┼──────────────────────────────────────────────────┤
-│ neo4j         │ Graph database (Community, pinned k3s-master)    │
-│               │ Service: neo4j:7687 (NodePort 30087)             │
-│               │ Browser: http://neo4j.local:30080                │
-├───────────────┼──────────────────────────────────────────────────┤
-│ nextcloud     │ File sync, MariaDB, Redis (100Gi PVC)              │
-│ pve           │ Proxmox VE web UI via Traefik                      │
-├───────────────┼──────────────────────────────────────────────────┤
-│ ∀ apps        │ Each in its own namespace                        │
-│               │ Can reference cross-ns services/middlewares       │
-└───────────────┴──────────────────────────────────────────────────┘
-```
+Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, tainted
+`media=yes:NoSchedule`) — with everything below reconciled from `clusters/pk3s/`:
+
+| Namespace | What runs there | Reached as |
+|---|---|---|
+| `flux-system` | Flux Operator + the four controllers, HelmRepositories, `flux-dashboard` UI (`flux-operator:9080`) | LAN `fluxops.local` |
+| `traefik` | Ingress controller (chart 41.4.0 → Traefik v3.7.12), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
+| `cloudflared` | Cloudflare Tunnel connector (metrics on `:2000`, scraped) | — (dials out) |
+| `cert-manager` | cert-manager v1.20 + Let's Encrypt DNS-01 ClusterIssuers | — |
+| `sealed-secrets` | SealedSecrets controller (chart 2.5.19) | — |
+| `forgejo` | Forgejo 15.0.6 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
+| `forgejo-runner` | CI runner 12.7.3 + DinD sidecar | — |
+| `atuin` | Atuin 18.17 server (`atuin:8888`), external PostgreSQL | public `history.watchtoken.org` |
+| `actual-budget` | Actual Budget 26.8, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
+| `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
+| `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
+| `hris` | TALA HRIS (Rails 8), chart range `>=0.1.0 <1.0.0`, 4 external PG databases | public `hris.alacaba.org` |
+| `media` | jellyfin, seerr, immich 3.0 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
+| `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.7 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
+| `neo4j` | Neo4j 5.26.28 Community, pinned to `k3s-master` | LAN `neo4j.local`, Bolt NodePort 30087 |
+| `nextcloud` | Nextcloud 34.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
+| `pangolin` | newt 1.12.3 agent (chart 1.4.0) → Pangolin VPS relay | — (dials out over WireGuard) |
+| `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
+| `pve` | Reverse proxy to Proxmox VE `192.168.254.165:8006` | LAN `https://pve.local` (self-signed) |
+| `spec-frontend` | Neo4j story-graph browser (chart 0.2.4) | LAN `spec-frontend.local`, public `spec.watchtoken.org` |
+| `watcharr` | Watcharr 4.2.1, 5Gi PVC | LAN `watcharr.local` |
+| `kube-system` | k3s internals: coredns 1.14.6, metrics-server 0.9.0, local-path-provisioner 0.0.37, svclb | — |
+
+Stray resources **not** managed by Flux (leftovers from earlier node work, safe to delete by hand):
+the `debug-tmp` namespace plus two `Completed` `node-debugger-k3s-master-*` pods — one in
+`debug-tmp`, one in `default` (reconcile activity does not touch them).
 
 ### Cross-namespace references
 
@@ -294,6 +311,53 @@ other namespaces.
   tunnel, bypassing Traefik (raw TCP, no TLS).
 - **Internal** (`*.local`): accessed via `http://192.168.254.50:30080` on LAN.
   SSH accessible via `ssh://git@192.168.254.50:30022`.
+
+## Cluster Inventory (verified 2026-09-13)
+
+Everything here was read back from the running cluster; use it as the baseline when a change is
+about to touch an app.
+
+### HelmReleases
+
+| Namespace | Release | Chart version |
+|---|---|---|
+| cert-manager | cert-manager | v1.20.2 |
+| cv-datastar | cv-datastar | 0.3.0 |
+| forgejo | forgejo | 17.1.4 |
+| forgejo-runner | forgejo-runner | 0.7.6 |
+| neo4j | neo4j | 5.26.28 |
+| nextcloud | nextcloud | 9.2.6 |
+| traefik | traefik | 41.4.0 |
+| monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.0.0 / 6.17.1 |
+| media | immich | 0.13.1 |
+| pangolin | newt | 1.4.0 |
+| sealed-secrets | sealed-secrets | 2.5.19 |
+| spec-frontend | spec-frontend | 0.2.4 |
+| hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
+
+Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
+floci (`floci/floci:latest`), papra 26.6.1-rootless, watcharr v4.2.1, pve (proxy only), and the
+media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1.3.9, immich valkey
+9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
+
+### Persistent volumes
+
+| Namespace | PVC (storage class) | Size |
+|---|---|---|
+| actual-budget | `actual-budget-data` (local-path) | 2Gi |
+| atuin | `atuin-config` (local-path) | 100Mi |
+| floci | `floci-data` (local-path) | 5Gi |
+| forgejo | `gitea-shared-storage` (local-path) | 10Gi |
+| forgejo-runner | `dind-data` (local-path) | 20Gi |
+| papra | `papra-data` (local-path) | 10Gi |
+| watcharr | `watcharr-data` (local-path) | 5Gi |
+| neo4j | `data-neo4j-0` (local-path) | 10Gi |
+| nextcloud | `nextcloud-nextcloud` / `data-nextcloud-mariadb-0` / `redis-data-nextcloud-redis-master-0` | 100Gi / 8Gi / 5Gi |
+| monitoring | prometheus / loki / grafana / alertmanager | 20Gi / 10Gi / 5Gi / 5Gi |
+| media | `immich-library` + ten 2Gi app-config PVCs (media-local-path) | 200Gi + 20Gi |
+
+Every one of these is reclaim `Delete`: removing an app from the root kustomization prunes its
+volumes, and the data with them (see the gotcha list).
 
 ## Documentation Updates
 
@@ -313,7 +377,7 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 
 1. **Chart ingress vs IngressRoute:** If writing a manual IngressRoute, always disable the chart's built-in ingress.
 2. **OCI registry auth:** Charts pushed to `fgit.watchtoken.org` need a `forgejo-registry-auth` docker-registry Secret in `flux-system`.
-3. **Reconciliation lag:** Flux syncs every 1h by default — push and wait, don't force. If a change must land now, `flux reconcile kustomization flux-system -n flux-system --with-source` (the root Kustomization is named `flux-system`, NOT `pk3s` — see GitOps Workflow).
+3. **Reconciliation lag:** the GitRepository polls every 1m and the root Kustomization re-applies every 10m, so a push normally lands in a minute or two — push and wait, don't force. If a change must land now, `flux reconcile kustomization flux-system -n flux-system --with-source` (the root Kustomization is named `flux-system`, NOT `pk3s` — see GitOps Workflow).
 4. **Local chart deployment:** Can't use upstream HelmRepository for local charts. Package → push to OCI registry → HelmRelease with `type: oci`.
 5. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
 6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
@@ -333,22 +397,32 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 20. **Papra single-PVC with quiesced backup:** Papra stores SQLite db + document originals on one 10Gi `local-path` PVC (`papra-data`, `/app/app-data`, reclaim `Delete`). Removing `papra` from the root kustomization wipes all documents. Backup: commit `replicas: 0` → wait for pod termination → mount the PVC read-only in a throwaway helper pod and copy `/app/app-data` out → commit `replicas: 1`. No Papra CLI export command exists (import only) — never rely on a live SQLite file copy.
 21. **Nextcloud reverse-proxy requires `trusted_proxies` + `overwritehost` via `extraEnv`, NOT `nextcloud.host`:** Behind Traefik, Nextcloud must trust the proxy's forwarded headers. The chart's `reverse-proxy.config.php` reads env vars (`OVERWRITEHOST`, `OVERWRITECLIURL`, `TRUSTED_PROXIES`, `OVERWRITEPROTOCOL`) and writes them to `$CONFIG`. But `nextcloud.host` only feeds `NEXTCLOUD_TRUSTED_DOMAINS` — it does NOT set `overwritehost` or `trusted_proxies`. Set these explicitly under `nextcloud.extraEnv`: `OVERWRITEHOST=sync.watchtoken.org`, `OVERWRITECLIURL=https://sync.watchtoken.org`, `TRUSTED_PROXIES=10.42.0.0/16` (k3s pod CIDR). Without these, sync clients see DAV hrefs pointing at `localhost`/`http` and fail with "Files not accessible on server." Symptom confirmed: `config.php` shows `overwrite.cli.url => 'https://localhost'` and no `overwritehost`/`trusted_proxies` entries. To fix a running instance immediately (before Flux re-reconciles), run `php occ config:system:set overwritehost --value=sync.watchtoken.org` + `trusted_proxies 0 --value=10.42.0.0/16` + `overwrite.cli.url --value=https://sync.watchtoken.org` as www-data inside the pod.
 22. **Cloudflare Tunnel upload ceiling (~100 MB):** The Cloudflare free tier limits HTTP request bodies to ~100 MB through the tunnel. Large file uploads (videos, big archives) fail on the public `sync.watchtoken.org` route but work fine on LAN (`sync.local`). Photos and documents are unaffected.
-23. **Two-PVC consistent backup required:** Nextcloud has two persistent volumes (data `/var/www/html` + MariaDB). They must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`). Backing up one without the other = data loss on restore.
+23. **Consistent multi-PVC backup required:** Nextcloud spans **three** volumes — `nextcloud-nextcloud` 100Gi (`/var/www/html`), `data-nextcloud-mariadb-0` 8Gi and `redis-data-nextcloud-redis-master-0` 5Gi. Data + database must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`); the Redis volume is a cache and can be rebuilt. Backing up the data volume without the database = data loss on restore.
 24. **`overwritehost` is single-valued:** Setting it to `sync.watchtoken.org` means `.local` access generates public-host URLs for share links and WebDAV endpoints. This is expected and correct — the canonical hostname is the public one. Do not fight it with fragile workarounds.
- 23. **`local-path` Delete reclaim on all PVCs:** Same as papra (gotcha #20) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
- 24. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
- 25. **spec-frontend chart/image must be published before deploy:** The app repo (`~/Projects/spec-frontend`) publishes its chart via a `v*` tag on main (CI `publish-chart` job, `helm-pusher`-less — the registry-account secrets live in Forgejo CI). The chart as of v0.1.0 shipped an invalid pod-level `readOnlyRootFilesystem` — fixed upstream (moved to the container `securityContext`); if a freshly published chart is rejected, check that fix. The image tag equals the chart's `appVersion` (`main-<sha>`); the HelmRelease leaves `image.tag` empty to follow it. Verify with `helm pull oci://fgit.watchtoken.org/forgejo-admin/spec-frontend --version <v>`.
- 26. **spec-frontend credentials are derived, not invented:** `neo4j-creds` (SealedSecret in `spec-frontend` ns) is re-sealed from the in-cluster `neo4j-auth` secret (`kubectl get secret neo4j-auth -n neo4j -o jsonpath='{.data.NEO4J_AUTH}' | base64 -d` → `neo4j/<pw>`, strip the prefix) — the plaintext never enters git or chat. The `forgejo-registry-auth` imagePullSecret is a copy of the flux-system dockerconfigjson re-sealed for the workload namespace (pull secrets must be namespace-local).
- 27. **Media public DNS must stay gray-clouded:** the `watchtoken.org` apex plus `seerr`/`pangolin` A records (`proxied = false`) route straight to the Pangolin VPS. Setting `proxied = true` (or a stray wildcard A record) would send video through Cloudflare — a ToS §2.8 violation at 4-6 concurrent streams.
- 28. **Pangolin VPS is not in git:** `/opt/pangolin` (config + SQLite) is backed up weekly via a systemd timer on the master (`pangolin-backup.timer`, Sun 02:30) → `/home/backups/pangolin`. A VPS rebuild = reinstall + restore dir; newt credentials are unchanged so the cluster side needs nothing.
- 29. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
- 30. **actual-budget data is a single small PVC:** Actual Budget stores its SQLite DB + user files on a 2Gi `local-path` PVC (`actual-budget-data`, `/data`). Reclaim is `Delete` — removing the app from the root kustomization wipes your budget. Actual's built-in "Export data" (Settings → Export data) is the off-cluster recovery path; run it before any destructive change.
+25. **`local-path` Delete reclaim on all PVCs:** Same as papra (gotcha #20) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
+26. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
+27. **spec-frontend chart/image must be published before deploy:** The app repo (`~/Projects/spec-frontend`) publishes its chart via a `v*` tag on main (CI `publish-chart` job, `helm-pusher`-less — the registry-account secrets live in Forgejo CI). The chart as of v0.1.0 shipped an invalid pod-level `readOnlyRootFilesystem` — fixed upstream (moved to the container `securityContext`); if a freshly published chart is rejected, check that fix. The image tag equals the chart's `appVersion` (`main-<sha>`); the HelmRelease leaves `image.tag` empty to follow it. Verify with `helm pull oci://fgit.watchtoken.org/forgejo-admin/spec-frontend --version <v>`.
+28. **spec-frontend credentials are derived, not invented:** `neo4j-creds` (SealedSecret in `spec-frontend` ns) is re-sealed from the in-cluster `neo4j-auth` secret (`kubectl get secret neo4j-auth -n neo4j -o jsonpath='{.data.NEO4J_AUTH}' | base64 -d` → `neo4j/<pw>`, strip the prefix) — the plaintext never enters git or chat. The `forgejo-registry-auth` imagePullSecret is a copy of the flux-system dockerconfigjson re-sealed for the workload namespace (pull secrets must be namespace-local).
+29. **Media public DNS must stay gray-clouded:** the `watchtoken.org` apex plus `seerr`/`pangolin` A records (`proxied = false`) route straight to the Pangolin VPS. Setting `proxied = true` (or a stray wildcard A record) would send video through Cloudflare — a ToS §2.8 violation at 4-6 concurrent streams.
+30. **Pangolin VPS is not in git:** `/opt/pangolin` (config + SQLite) is backed up weekly via a systemd timer on the master (`pangolin-backup.timer`, Sun 02:30) → `/home/backups/pangolin`. A VPS rebuild = reinstall + restore dir; newt credentials are unchanged so the cluster side needs nothing.
+31. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
+32. **actual-budget data is a single small PVC:** Actual Budget stores its SQLite DB + user files on a 2Gi `local-path` PVC (`actual-budget-data`, `/data`). Reclaim is `Delete` — removing the app from the root kustomization wipes your budget. Actual's built-in "Export data" (Settings → Export data) is the off-cluster recovery path; run it before any destructive change.
+
+33. **Most of the media stack tracks `:latest`:** bazarr, lidarr, prowlarr, radarr, sonarr, qbittorrent,
+sabnzbd, flaresolverr and floci carry no tag pin, so a pod restart can silently change the version —
+"what is running" is not recorded in git for those. Jellyfin is the deliberate exception (pinned
+`version-12.0ubu2604` with its own upgrade SOP). Pin a tag here when a version must be reproducible.
+
+34. **Flux itself is managed by the FluxInstance, not by per-controller manifests:** `flux-instance.yaml`
+declares distribution `2.8.x` plus the four components, and the Flux Operator re-renders the
+controllers (`fluxcd.controlplane.io/reconcileEvery: "1h"`). Upgrading Flux means editing that file;
+there are no controller Deployments to bump by hand.
 
 
 ## Forgejo Runner
 
-The CI runner runs in `forgejo-runner` namespace, connects to the internal Forgejo
-service (`forgejo-http.forgejo.svc:3000`). Uses Docker-in-Docker sidecar for
+The CI runner (runner 12.7.3) runs in `forgejo-runner` namespace, connects to the internal Forgejo
+service (`forgejo-http.forgejo.svc:3000`). Uses a Docker-in-Docker sidecar (docker 29.5-dind) for
 container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
 `docker://node:22-bookworm`).
 
@@ -357,7 +431,8 @@ container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
 Sized for JVM-based workloads (Clojure/ClojureScript builds): job containers get
 `--cpus=2 --memory=4g` via `runner.config.file.container.options`; runner
 container limits 2000m/2Gi; dind sidecar limits 4000m/4Gi. Requests stay small
-(100m, 128Mi/256Mi) to preserve headroom on the single-node cluster.
+(100m, 128Mi/256Mi) to preserve headroom on `k3s-master` — the media node is
+tainted and carries its own budget.
 
 ### Health check
 
@@ -435,7 +510,7 @@ Both should print the Forgejo greeting (`Hi <user>! You've successfully authenti
 
 ## Forgejo PostgreSQL (migration runbook)
 
-Forgejo runs on the central PostgreSQL 18.3 instance at `192.168.254.104` (database `forgejo`, role `forgejo`, non-superuser). The SQLite-era data was migrated on 2026-08-11; a shutdown-consistent snapshot remains on the PVC at `/data/backup/forgejo-2026-08-11/` (checkpointed `forgejo.db` + `counts-sqlite.txt` + `forgejo-dump.zip`, 256 MB).
+Forgejo runs on the central PostgreSQL 18.3 instance at `192.168.254.104` (database `forgejo`, role `forgejo`, non-superuser). The SQLite-era data was migrated on 2026-08-11; a shutdown-consistent snapshot is still on the PVC at `/data/backup/forgejo-2026-08-11/` (verified 2026-09-13: checkpointed `forgejo.db`, `forgejo-data.sql`, `counts-sqlite.txt`, `forgejo-dump.zip` ≈ 256 MB).
 
 ### Rollback runbook (only if a gate fails)
 
@@ -873,9 +948,10 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 - **Rollback (per-app)**: commit replicas 1->0 + confirm stopped, THEN
   restart the old docker container; download unit rolls back atomically.
   Never two writers on the same state.
-- **DaemonSets skip the media node**: svclb-traefik, node-exporter and
-  promtail lack the media toleration (acceptable — LAN entry is the
-  master's NodePort; monitoring gap noted).
+- **Only `svclb-traefik` skips the media node** (verified 2026-09-13): `node-exporter` and `promtail`
+  both carry `operator: Exists` tolerations and do run on `k3s-media`, so media-node metrics and logs
+  are collected after all. The absent svclb pod is harmless — LAN entry is the master's NodePort,
+  served from `k3s-master`.
 - **Indexers**: zetorrents/zktorrent prowlarr definitions point at stale
   domains (rotation lists now redirect to parked pages) — update baseUrls
   manually. The zktorrent definition is ALSO outdated vs the current site
@@ -999,7 +1075,7 @@ DNS-01 via a scoped Cloudflare token). Transcoding stays at home (B580 QSV).
   dir, newt reconnects on its own.
 - **CrowdSec** runs on the VPS (installer `--crowdsec`). If a friend is
   blocked (false positive from residential IP reputation), whitelist their IP
-  via `cscli decisions` (see gotcha #29).
+  via `cscli decisions` (see gotcha #31).
 - **Region note:** the VPS is Falkenstein, not Singapore as originally planned
   — fine for EU/NA friends; SEA friends get higher latency. Accepted
   divergence, recorded 2026-08-22.
