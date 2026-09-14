@@ -55,13 +55,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
         }
       },
       {
-        hostname = "spec.watchtoken.org"
-        service  = local.tunnel_service
-        origin_request = {
-          no_tls_verify = true
-        }
-      },
-      {
         hostname = "budget.watchtoken.org"
         service  = local.tunnel_service
         origin_request = {

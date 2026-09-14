@@ -6,7 +6,7 @@ GitOps repository for the **k3s v1.36 homelab cluster** (`pk3s`), synced by Flux
 ## Read this first
 
 **[docs/AGENT_INSTRUCTIONS.md](docs/AGENT_INSTRUCTIONS.md) is the full guide** — cluster layout,
-app deployment pattern, conventions, per-app runbooks (papra, hris, spec-frontend, neo4j, media
+app deployment pattern, conventions, per-app runbooks (papra, hris, media
 stack, pangolin…), secret handling, backup/rollback procedures and the gotcha list. Open it before
 changing anything. This file only carries the rules that must hold even if you read nothing else.
 

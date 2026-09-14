@@ -55,15 +55,6 @@ resource "cloudflare_dns_record" "history_watchtoken" {
   proxied = true
 }
 
-resource "cloudflare_dns_record" "spec_watchtoken" {
-  zone_id = data.cloudflare_zone.watchtoken_org.id
-  name    = "spec"
-  content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
-  type    = "CNAME"
-  ttl     = 1
-  proxied = true
-}
-
 resource "cloudflare_dns_record" "alacaba_org" {
   zone_id = data.cloudflare_zone.alacaba_org.id
   name    = "alacaba.org"
