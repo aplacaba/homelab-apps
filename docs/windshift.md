@@ -13,20 +13,20 @@ in `clusters/pk3s/windshift/`.
 |---|---|---|
 | **Public** | `https://windshift.watchtoken.org` | Cloudflare tunnel → Traefik websecure (wildcard cert). **The only route** — no `windshift.local` (Windshift rejects plain-HTTP non-localhost origins; guide gotcha #18) |
 
-Auth: first-run setup creates the admin account. Until it is claimed,
-`/api/setup` is blocked at Traefik (`windshift-block-setup` + ipAllowList
-`127.0.0.1/32` → 403; guide gotcha #19). Claim it via the port-forward:
+Auth: the admin account was claimed on 2026-09-24 (one-shot first-run setup;
+further users are created admin-side). During the claim, `/api/setup` was
+temporarily blocked at Traefik (ipAllowList `127.0.0.1/32` → 403) and the
+account was created over a port-forward; that block has been removed
+(guide gotcha #19). Passkeys bind to `WEBAUTHN_RP_ID=windshift.watchtoken.org`
+(set explicitly — the container hostname is the container ID).
+
+If the database is ever rebuilt from scratch, re-add the block before the
+public URL finds the fresh instance, then claim it with:
 
 ```bash
 kubectl port-forward -n windshift deploy/windshift 8080:8080
-# open http://localhost:8080 and create the admin account
+# open http://localhost:8080, create the admin account, then remove the block
 ```
-
-Then remove the `windshift-block-setup` IngressRoute **and** the
-`windshift-setup-block-mw` Middleware from
-`clusters/pk3s/windshift/ingressroute.yaml` and push. Passkeys bind to
-`WEBAUTHN_RP_ID=windshift.watchtoken.org` (set explicitly — the container
-hostname is the container ID).
 
 ### Database
 
@@ -50,9 +50,10 @@ hostname is the container ID).
   large multipart uploads spill there and the coding-agent runner executes a
   git askpass helper from it (`exec` is required — k8s memory emptyDir is
   exec by default, unlike Docker). Startup fails without it.
-- **Setup block:** while `windshift-block-setup` exists, the public site's
-  first-run wizard cannot complete (403) — intended until claimed. The
-  login page itself is unaffected once setup is done and the block is removed.
+- **Setup block (removed):** the temporary `windshift-block-setup` route is
+  gone and the public setup wizard now completes/opens normally. Re-add it
+  (ipAllowList `127.0.0.1/32`) only for a from-scratch rebuild, since setup
+  mode disables authentication until the first admin exists.
 - **Memory:** `WINDSHIFT_MEMORY_LIMIT_MB` defaults to 2048 (min 512); the
   container limit must be ≥ the budget (2Gi set). Process budget is a soft
   target, not a hard RSS ceiling.
