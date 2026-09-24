@@ -21,6 +21,23 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
+      initContainers:
+        # Windshift only stats ATTACHMENT_PATH, it never creates it — without
+        # this the app logs "attachment storage path stat failed" and uploads fail.
+        - name: prepare-data
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - mkdir -p /data/attachments
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: windshift
           image: ghcr.io/windshiftapp/windshift:v0.8.8

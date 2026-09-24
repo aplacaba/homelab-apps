@@ -42,6 +42,10 @@ kubectl port-forward -n windshift deploy/windshift 8080:8080
 - `ATTACHMENT_PATH=/data/attachments` on the `windshift-data` PVC (5Gi,
   reclaim `Delete`). Quiesced backup: commit `replicas: 0` → wait for pod
   termination → copy `/data` out with a read-only helper pod → `replicas: 1`.
+- The `prepare-data` initContainer (`mkdir -p /data/attachments`) exists
+  because Windshift only stats `ATTACHMENT_PATH` and never creates it — the
+  PVC has no subdirs until the app makes them, and without it every request
+  logs `attachment storage path stat failed` and uploads fail.
 - Public-tunnel uploads are capped at ~100 MB (guide gotcha #22).
 
 ### Gotchas
