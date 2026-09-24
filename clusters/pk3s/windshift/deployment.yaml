@@ -40,7 +40,7 @@ spec:
                 - ALL
       containers:
         - name: windshift
-          image: ghcr.io/windshiftapp/windshift:v0.8.8
+          image: ghcr.io/windshiftapp/windshift:v0.8.9
           env:
             - name: BASE_URL
               value: https://windshift.watchtoken.org

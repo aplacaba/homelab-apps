@@ -96,7 +96,7 @@ clusters/pk3s/
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
 ├── watcharr/                  # Media watch list / tracker 4.2.1 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
-└── windshift/                 # Work management / Jira alternative 0.8.8 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
+└── windshift/                 # Work management / Jira alternative 0.8.9 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
 ```
 
 ## App Deployment Pattern
@@ -329,7 +329,7 @@ about to touch an app.
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
-floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.8, pve (proxy only), and the
+floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.9, pve (proxy only), and the
 media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1.3.9, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
@@ -526,7 +526,7 @@ Per database, most recent dump → restore into a scratch DB with `pg_restore --
 ## Windshift
 
 Work management / Jira alternative (deployed 2026-09-24, replaced Papra). Single Go container
-(`ghcr.io/windshiftapp/windshift:v0.8.8`) on the central PostgreSQL (`windshift` db/role) with
+(`ghcr.io/windshiftapp/windshift:v0.8.9`) on the central PostgreSQL (`windshift` db/role) with
 attachments on a 5Gi `local-path` PVC, public at `https://windshift.watchtoken.org` — **no `.local`
 route** (gotcha #18). First-run admin setup was claimed 2026-09-24; the temporary Traefik block was
 removed (gotcha #19).

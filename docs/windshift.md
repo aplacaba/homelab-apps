@@ -2,7 +2,7 @@
 
 Deployed 2026-09-24, replacing Papra (backup of the Papra PVC in
 `~/backups/papra-2026-09-24/` on the admin workstation). Single Go container —
-`ghcr.io/windshiftapp/windshift:v0.8.8`, scratch image, UID 65534, port 8080 —
+`ghcr.io/windshiftapp/windshift:v0.8.9`, scratch image, UID 65534, port 8080 —
 with the database on the central PostgreSQL box (`192.168.254.104`, db + role
 `windshift`) and attachments/plugins on a 5Gi `local-path` PVC. Raw manifests
 in `clusters/pk3s/windshift/`.
@@ -50,6 +50,10 @@ kubectl port-forward -n windshift deploy/windshift 8080:8080
 
 ### Gotchas
 
+- **Do not pin 0.8.8:** its frontend misses the v2 API migration for workflows,
+  so status/workflow changes silently don't apply and new statuses don't show
+  (upstream issue #268). Fixed in 0.8.9. (The windshift.app download page
+  lagged behind GitHub releases and still called 0.8.8 "current".)
 - **Scratch image needs the tmpfs:** `/tmp` is a 64Mi memory `emptyDir`;
   large multipart uploads spill there and the coding-agent runner executes a
   git askpass helper from it (`exec` is required — k8s memory emptyDir is
