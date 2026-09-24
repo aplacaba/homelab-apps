@@ -6,7 +6,7 @@ GitOps repository for the **k3s v1.36 homelab cluster** (`pk3s`), synced by Flux
 ## Read this first
 
 **[docs/AGENT_INSTRUCTIONS.md](docs/AGENT_INSTRUCTIONS.md) is the full guide** — cluster layout,
-app deployment pattern, conventions, per-app runbooks (papra, hris, media
+app deployment pattern, conventions, per-app runbooks (windshift, hris, media
 stack, pangolin…), secret handling, backup/rollback procedures and the gotcha list. Open it before
 changing anything. This file only carries the rules that must hold even if you read nothing else.
 
@@ -39,7 +39,7 @@ changing anything. This file only carries the rules that must hold even if you r
 | Adding/changing an app | guide → App Deployment Pattern, Conventions |
 | Secrets and rotation | guide → Secret Management (SealedSecrets) |
 | Something is broken | guide → Common Gotchas, then the app's section |
-| Per-app runbook | guide section, or `docs/papra.md` |
+| Per-app runbook | guide section, or `docs/windshift.md` |
 
 Local operator tooling (`scripts/`, e.g. `seal-hris-secrets.sh`) is untracked on purpose — see the
 guide's HRIS and Terraform sections.

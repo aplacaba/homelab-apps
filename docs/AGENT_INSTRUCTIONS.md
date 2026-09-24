@@ -47,7 +47,7 @@ change must land now (e.g. verifying a fix, un-sticking a failed sync).
 AGENTS.md                      # short entry point loaded as workspace instructions
 docs/
 ├── AGENT_INSTRUCTIONS.md      # ← this guide
-├── papra.md                   # Papra runbook (ingestion, backup, probes)
+├── windshift.md               # Windshift runbook (admin claim, database, backup)
 ├── cv-datastar-commands.md    # CV site release commands
 ├── patterns.md                # Reusable manifest patterns
 ├── authentik-forward-auth.md  # LEGACY — Authentik was removed; kept for history
@@ -92,11 +92,11 @@ clusters/pk3s/
 ├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.0.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
 ├── nextcloud/                 # File sync & share (chart 9.2.6 → Nextcloud 34.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.12.3 → VPS relay for public jellyfin/seerr (chart 1.4.0, no ingress)
-├── papra/                     # Document archiving / OCR (raw manifests, Papra 26.6.1 on a 10Gi PVC) — public papra.watchtoken.org, no LAN route
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
-└── watcharr/                  # Media watch list / tracker 4.2.1 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
+├── watcharr/                  # Media watch list / tracker 4.2.1 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
+└── windshift/                 # Work management / Jira alternative 0.8.8 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
 ```
 
 ## App Deployment Pattern
@@ -329,7 +329,7 @@ about to touch an app.
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
-floci (`floci/floci:latest`), papra 26.6.1-rootless, watcharr v4.2.1, pve (proxy only), and the
+floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.8, pve (proxy only), and the
 media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1.3.9, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
@@ -342,8 +342,8 @@ media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1
 | floci | `floci-data` (local-path) | 5Gi |
 | forgejo | `gitea-shared-storage` (local-path) | 10Gi |
 | forgejo-runner | `dind-data` (local-path) | 20Gi |
-| papra | `papra-data` (local-path) | 10Gi |
 | watcharr | `watcharr-data` (local-path) | 5Gi |
+| windshift | `windshift-data` (local-path) | 5Gi |
 | nextcloud | `nextcloud-nextcloud` / `data-nextcloud-mariadb-0` / `redis-data-nextcloud-redis-master-0` | 100Gi / 8Gi / 5Gi |
 | monitoring | prometheus / loki / grafana / alertmanager | 20Gi / 10Gi / 5Gi / 5Gi |
 | media | `immich-library` + ten 2Gi app-config PVCs (media-local-path) | 200Gi + 20Gi |
@@ -384,9 +384,9 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 15. **Grafana admin credentials are a SealedSecret, not plaintext:** Grafana admin auth is no longer the default `admin/admin` in the HelmRelease. The password is stored in `monitoring/sealedsecret-grafana-admin.yaml` (keys `admin-user` and `admin-password`), and the HelmRelease references it via `grafana.admin.existingSecret: grafana-admin-secret`. To rotate the Grafana password, re-seal into that `SealedSecret` — do not edit the HelmRelease values directly.
 16. **cloudflared access SSH bypasses Traefik:** Public SSH (`ssh.watchtoken.org`) does NOT route through Traefik. The tunnel ingress routes directly to `forgejo-ssh.forgejo.svc:22` (raw TCP). This is configured in Terraform (`terraform/tunnel.tf`), not the dashboard. Do NOT add a Traefik TCP entryPoint for SSH — the tunnel handles it without one.
 17. **Alertmanager configSecret propagation takes ~1 minute:** The Prometheus Operator watches the `alertmanager-config` Secret. When updated (via SealedSecret re-seal), the operator reads it, generates a new intermediate secret, and the Alertmanager config-reloader picks it up within ~1 minute. No pod restart needed — the StatefulSet config-volume is not updated, but the generated config file in `/etc/alertmanager/config_out/` is refreshed automatically.
-18. **Papra is public-HTTPS-only (no LAN route):** Papra's auth (Better Auth) sets Secure session cookies when `APP_BASE_URL` is HTTPS, so cookie login can never work over plain HTTP `*.local`. LAN clients use `https://papra.watchtoken.org` (same pattern as nextcloud). Do not add a `papra.local` IngressRoute.
-19. **Papra signup is blocked at Traefik, not in-app:** the `AUTH_IS_REGISTRATION_ENABLED` flag only hides the UI and disables OAuth sign-up — direct `POST /api/auth/sign-up/email` stays open (verified at `@papra/app@26.6.1`). The `papra-block-signup` IngressRoute (ipAllowList `127.0.0.1/32` → 403) is the actual control; keep it. When testing the block directly, send an explicit `Host: papra.watchtoken.org` header — a `--resolve` request to port 30443 puts the port in the Host and matches no router (404).
-20. **Papra single-PVC with quiesced backup:** Papra stores SQLite db + document originals on one 10Gi `local-path` PVC (`papra-data`, `/app/app-data`, reclaim `Delete`). Removing `papra` from the root kustomization wipes all documents. Backup: commit `replicas: 0` → wait for pod termination → mount the PVC read-only in a throwaway helper pod and copy `/app/app-data` out → commit `replicas: 1`. No Papra CLI export command exists (import only) — never rely on a live SQLite file copy.
+18. **Windshift is public-HTTPS-only (no LAN route):** Windshift's CORS layer rejects browser origins on plain HTTP for any non-localhost host (`CORS_CONFIG_ERROR` at startup and on every browser request), and Traefik's internal entrypoint is HTTP-only, so there is no `windshift.local` route. LAN clients use `https://windshift.watchtoken.org` (same pattern as nextcloud). Only `localhost` (e.g. `kubectl port-forward`) is exempt from the HTTPS requirement.
+19. **Windshift first-run setup is blocked at Traefik until claimed:** the `windshift-block-setup` IngressRoute matches `Host(...) && PathPrefix('/api/setup')` with an ipAllowList of `127.0.0.1/32` (→ 403), so a stranger cannot claim the admin account from the public URL. Claim via `kubectl port-forward -n windshift deploy/windshift 8080:8080` and http://localhost:8080 (same-origin, never touches Traefik), then delete the block IngressRoute + `windshift-setup-block-mw` and push.
+20. **Windshift attachments live on one 5Gi `local-path` PVC:** `windshift-data` (`/data`, reclaim `Delete`) holds attachments/plugins only — the database is on central PostgreSQL and covered by the nightly pg-backup.sh. Removing `windshift` from the root kustomization wipes the attachments; back up quiesced (`replicas: 0` → read-only helper pod → `replicas: 1`), never a live copy.
 21. **Nextcloud reverse-proxy requires `trusted_proxies` + `overwritehost` via `extraEnv`, NOT `nextcloud.host`:** Behind Traefik, Nextcloud must trust the proxy's forwarded headers. The chart's `reverse-proxy.config.php` reads env vars (`OVERWRITEHOST`, `OVERWRITECLIURL`, `TRUSTED_PROXIES`, `OVERWRITEPROTOCOL`) and writes them to `$CONFIG`. But `nextcloud.host` only feeds `NEXTCLOUD_TRUSTED_DOMAINS` — it does NOT set `overwritehost` or `trusted_proxies`. Set these explicitly under `nextcloud.extraEnv`: `OVERWRITEHOST=sync.watchtoken.org`, `OVERWRITECLIURL=https://sync.watchtoken.org`, `TRUSTED_PROXIES=10.42.0.0/16` (k3s pod CIDR). Without these, sync clients see DAV hrefs pointing at `localhost`/`http` and fail with "Files not accessible on server." Symptom confirmed: `config.php` shows `overwrite.cli.url => 'https://localhost'` and no `overwritehost`/`trusted_proxies` entries. To fix a running instance immediately (before Flux re-reconciles), run `php occ config:system:set overwritehost --value=sync.watchtoken.org` + `trusted_proxies 0 --value=10.42.0.0/16` + `overwrite.cli.url --value=https://sync.watchtoken.org` as www-data inside the pod.
 22. **Cloudflare Tunnel upload ceiling (~100 MB):** The Cloudflare free tier limits HTTP request bodies to ~100 MB through the tunnel. Large file uploads (videos, big archives) fail on the public `sync.watchtoken.org` route but work fine on LAN (`sync.local`). Photos and documents are unaffected.
 23. **Consistent multi-PVC backup required:** Nextcloud spans **three** volumes — `nextcloud-nextcloud` 100Gi (`/var/www/html`), `data-nextcloud-mariadb-0` 8Gi and `redis-data-nextcloud-redis-master-0` 5Gi. Data + database must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`); the Redis volume is a cache and can be rebuilt. Backing up the data volume without the database = data loss on restore.
@@ -517,19 +517,20 @@ File operations run from a PVC-mounted pod (image `nouchka/sqlite3`, mount `gite
 
 ## PostgreSQL backups (192.168.254.104)
 
-The dedicated PostgreSQL box backs up both databases (`atuin`, `forgejo`) nightly at 02:30 — plus `immich` (HRIS pending) via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
+The dedicated PostgreSQL box backs up the app databases (`atuin`, `forgejo`, `immich`, `windshift`; HRIS pending) nightly at 02:30 via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
 
 ### Monthly restore test (manual)
 
 Per database, most recent dump → restore into a scratch DB with `pg_restore --exit-on-error` → compare restored row counts against the most recent `backup.log` entry for that exact dump filename → drop the scratch DB. ANY failure — `pg_restore` exit != 0, a failing count query, or a count mismatch — emits a FAILED line and writes the `last-failure` sentinel (same alerting path as the nightly run). A successful test releases the migration snapshot retention hold (see Forgejo PostgreSQL).
 
-## Papra
+## Windshift
 
-Document archiving / OCR (replaced paperless-ngx on 2026-08-31). Single Node container with SQLite,
-public at `https://papra.watchtoken.org` — **no `.local` route** (gotcha #18) — with signup blocked at
-Traefik (gotcha #19) and one 10Gi `local-path` PVC that needs a quiesced backup (gotcha #20).
+Work management / Jira alternative (deployed 2026-09-24, replaced Papra). Single Go container
+(`ghcr.io/windshiftapp/windshift:v0.8.8`) on the central PostgreSQL (`windshift` db/role) with
+attachments on a 5Gi `local-path` PVC, public at `https://windshift.watchtoken.org` — **no `.local`
+route** (gotcha #18). First-run admin setup is blocked at Traefik until claimed (gotcha #19).
 
-Runbook — ingestion folder, backup procedure, probes and gotchas: [papra.md](papra.md).
+Runbook — admin claim, database, attachments backup, gotchas: [windshift.md](windshift.md).
 
 ## HRIS
 
@@ -589,7 +590,11 @@ for you under the range, so publish the image before tagging the chart release.
 
 ## Terraform Workflow
 
-Terraform config lives in `terraform/`. Run locally after `terraform apply`:
+Terraform config lives in `terraform/`. **Applies happen in CI, not locally:** GitHub Actions
+(`.github/workflows/terraform-cloudflare.yml`) runs init/validate/plan on pull requests and
+`terraform apply -auto-approve` on every push to `main` touching `terraform/**` (Cloudflare token,
+account ID and R2 backend creds are GitHub secrets). A merged `.tf` change therefore lands with no
+local apply — all you need locally is the lint pass:
 
 ```bash
 # Lint before committing

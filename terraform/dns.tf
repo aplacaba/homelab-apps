@@ -73,9 +73,9 @@ resource "cloudflare_dns_record" "budget_watchtoken" {
   proxied = true
 }
 
-resource "cloudflare_dns_record" "papra_watchtoken" {
+resource "cloudflare_dns_record" "windshift_watchtoken" {
   zone_id = data.cloudflare_zone.watchtoken_org.id
-  name    = "papra"
+  name    = "windshift"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.main.id}.cfargotunnel.com"
   type    = "CNAME"
   ttl     = 1

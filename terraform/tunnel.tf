@@ -62,7 +62,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
         }
       },
       {
-        hostname = "papra.watchtoken.org"
+        hostname = "windshift.watchtoken.org"
         service  = local.tunnel_service
         origin_request = {
           no_tls_verify = true

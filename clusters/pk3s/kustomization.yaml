@@ -18,8 +18,8 @@ resources:
   - monitoring
   - nextcloud
   - pangolin
-  - papra
   - pve
   - sealed-secrets
   - traefik
   - watcharr
+  - windshift

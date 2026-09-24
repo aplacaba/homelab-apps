@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windshift
+  namespace: windshift
+  labels:
+    app: windshift
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: windshift
+  template:
+    metadata:
+      labels:
+        app: windshift
+    spec:
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: windshift
+          image: ghcr.io/windshiftapp/windshift:v0.8.8
+          env:
+            - name: BASE_URL
+              value: https://windshift.watchtoken.org
+            - name: WEBAUTHN_RP_ID
+              value: windshift.watchtoken.org
+            - name: USE_PROXY
+              value: "true"
+            - name: ATTACHMENT_PATH
+              value: /data/attachments
+            - name: DB_TYPE
+              value: postgres
+            - name: POSTGRES_HOST
+              value: 192.168.254.104
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: windshift
+            - name: POSTGRES_DB
+              value: windshift
+            - name: POSTGRES_SSLMODE
+              value: disable
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: windshift-secret
+                  key: POSTGRES_PASSWORD
+            - name: SSO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: windshift-secret
+                  key: SSO_SECRET
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: windshift-data
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
