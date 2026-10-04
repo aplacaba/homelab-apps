@@ -17,6 +17,7 @@ resources:
   - koito
   - media
   - monitoring
+  - multi-scrobbler
   - nextcloud
   - pangolin
   - pve

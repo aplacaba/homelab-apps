@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: multi-scrobbler
+  namespace: multi-scrobbler
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`scrobbler.local`)
+      services:
+        - name: multi-scrobbler
+          port: 9078
