@@ -31,6 +31,8 @@ spec:
           env:
             - name: TZ
               value: Asia/Manila
+            - name: NODE_OPTIONS
+              value: --dns-result-order=ipv4first
             - name: PUID
               value: "1000"
             - name: PGID
