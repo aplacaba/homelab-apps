@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: koito
+  namespace: koito
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`koito.local`)
+      services:
+        - name: koito
+          port: 4110

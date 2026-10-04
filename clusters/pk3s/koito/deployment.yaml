@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: koito
+  namespace: koito
+  labels:
+    app: koito
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: koito
+  template:
+    metadata:
+      labels:
+        app: koito
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: koito
+          image: gabehf/koito:v0.3.2
+          ports:
+            - containerPort: 4110
+              name: http
+          env:
+            - name: KOITO_DEFAULT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: koito-secrets
+                  key: KOITO_DEFAULT_USERNAME
+            - name: KOITO_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: koito-secrets
+                  key: KOITO_DEFAULT_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /etc/koito
+          readinessProbe:
+            httpGet:
+              path: /apis/web/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /apis/web/v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: koito-data

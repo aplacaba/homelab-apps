@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: koito
+  namespace: koito
+  labels:
+    app: koito
+spec:
+  selector:
+    app: koito
+  ports:
+    - name: http
+      port: 4110
+      targetPort: http
