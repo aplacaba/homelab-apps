@@ -88,8 +88,10 @@ clusters/pk3s/
 ├── forgejo/                   # Git + Actions + Registry (chart 17.1.4 → Forgejo 15.0.6, external PostgreSQL) — fgit.watchtoken.org
 ├── forgejo-runner/            # CI runner (chart 0.7.6 → runner 12.7.3 + DinD)
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
+├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
 ├── media/                     # Media stack on the k3s-media node (immich chart 0.13.1 + raw manifests) — all LAN-only *.local
 ├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.0.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
+├── multi-scrobbler/           # Scrobble bridge (0.19.2, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
 ├── nextcloud/                 # File sync & share (chart 9.2.6 → Nextcloud 34.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.12.3 → VPS relay for public jellyfin/seerr (chart 1.4.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
@@ -279,8 +281,10 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
 | `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
 | `hris` | TALA HRIS (Rails 8), chart range `0.x`, 4 external PG databases | public `hris.alacaba.org` |
+| `koito` | Koito 0.3.2 scrobble archive/stats, SQLite + image cache on a 5Gi PVC | LAN `koito.local` |
 | `media` | jellyfin, seerr, immich 3.0 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
 | `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.7 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
+| `multi-scrobbler` | Multi-Scrobbler 0.19.2 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
 | `nextcloud` | Nextcloud 34.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
 | `pangolin` | newt 1.12.3 agent (chart 1.4.0) → Pangolin VPS relay | — (dials out over WireGuard) |
 | `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
@@ -329,6 +333,7 @@ about to touch an app.
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
+koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.9, pve (proxy only), and the
 media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1.3.9, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
@@ -342,10 +347,12 @@ media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1
 | floci | `floci-data` (local-path) | 5Gi |
 | forgejo | `gitea-shared-storage` (local-path) | 10Gi |
 | forgejo-runner | `dind-data` (local-path) | 20Gi |
+| koito | `koito-data` (local-path) | 5Gi |
 | watcharr | `watcharr-data` (local-path) | 5Gi |
 | windshift | `windshift-data` (local-path) | 5Gi |
 | nextcloud | `nextcloud-nextcloud` / `data-nextcloud-mariadb-0` / `redis-data-nextcloud-redis-master-0` | 100Gi / 8Gi / 5Gi |
 | monitoring | prometheus / loki / grafana / alertmanager | 20Gi / 10Gi / 5Gi / 5Gi |
+| multi-scrobbler | `multi-scrobbler-data` (local-path) | 2Gi |
 | media | `immich-library` + ten 2Gi app-config PVCs (media-local-path) | 200Gi + 20Gi |
 
 Every one of these is reclaim `Delete`: removing an app from the root kustomization prunes its
@@ -407,6 +414,29 @@ sabnzbd, flaresolverr and floci carry no tag pin, so a pod restart can silently 
 declares distribution `2.8.x` plus the four components, and the Flux Operator re-renders the
 controllers (`fluxcd.controlplane.io/reconcileEvery: "1h"`). Upgrading Flux means editing that file;
 there are no controller Deployments to bump by hand.
+
+33. **The scrobble stack is LAN-only by design:** Multi-Scrobbler's dashboard has no
+authentication (upstream warns against public exposure) and Koito's read endpoints are
+open on the LAN while the login gate is off. Do not add tunnel/DNS entries for `koito.*`
+or `scrobbler.*`.
+34. **Koito first-boot credentials are one-shot:** `KOITO_DEFAULT_USERNAME` /
+`KOITO_DEFAULT_PASSWORD` only apply when the SQLite database is created; re-sealing them
+later does not rotate the live password — rotate in the UI instead.
+35. **Raw-manifest secret rotation needs the `secrets-revision` bump:** env vars are read
+at container start, so re-sealing alone changes nothing. `scripts/seal-koito-secrets.sh
+--bump` re-seals and bumps the annotation on the Multi-Scrobbler pod template so Flux
+rolls it (the raw-manifest equivalent of the chart `secretsChecksum`).
+36. **YouTube Music ingestion is unofficial:** cookie-based history polling can miss or
+duplicate scrobbles, and the cookie invalidates eventually. Renewal: fresh incognito
+`Cookie:` header → `scripts/import-ytm-cookie.sh <file>` → `seal-koito-secrets.sh --bump`
+→ commit/push (see [koito.md](koito.md)).
+37. **IPv4-only cluster vs Node happy-eyeballs:** Multi-Scrobbler must keep
+`NODE_OPTIONS=--dns-result-order=ipv4first --no-network-family-autoselection`; without it
+Node's 250 ms attempt timeout races to unreachable AAAA addresses and slow hosts
+(ListenBrainz/Hetzner) fail with `ETIMEDOUT` at startup.
+38. **Multi-Scrobbler needs default Linux capabilities:** its s6 init chowns `/config`
+and drops to `PUID`/`PGID`; a `capabilities: drop: [ALL]` securityContext breaks it
+(`setgroups: Operation not permitted`). Koito keeps full drop-ALL.
 
 
 ## Forgejo Runner
@@ -532,6 +562,16 @@ route** (gotcha #18). First-run admin setup was claimed 2026-09-24; the temporar
 removed (gotcha #19).
 
 Runbook — admin claim, database, attachments backup, gotchas: [windshift.md](windshift.md).
+
+## Scrobble stack (Koito + Multi-Scrobbler)
+
+Self-hosted scrobbling (deployed 2026-10-04): Apple Music (iPhone — FastScrobbler →
+ListenBrainz → MS) and YouTube Music (iPhone + browser — MS cookie source) are collected
+by Multi-Scrobbler and stored in Koito. Both apps are **LAN-only** (`koito.local`,
+`scrobbler.local`); no public tunnel/DNS entries exist.
+
+Runbook — architecture, YouTube-cookie rotation, import/backup, upgrades, gotchas:
+[koito.md](koito.md).
 
 ## HRIS
 
