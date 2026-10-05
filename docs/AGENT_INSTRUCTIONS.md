@@ -888,8 +888,9 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   cube, earthdistance. Immich server limit 1.5Gi (1Gi OOMs on migrations).
   pg-backup.sh includes immich (tables users/assets).
 - **seerr**: config at /app/config (not /config!), image pinned
-  `ghcr.io/seerr-team/seerr:v3.5.0` (upgrade strategy `Recreate` — the config
-  is a SQLite DB on a RWO volume, so a rolling update would mount it twice). Admin bootstrapped via
+  `ghcr.io/seerr-team/seerr:v3.5.0` (effectively single-pod rollout:
+  `maxSurge: 0` / `maxUnavailable: 1` — the config is a SQLite DB on a RWO
+  volume, so two pods must never mount it at once). Admin bootstrapped via
   DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
   the session cookie is required. The manual bootstrap originally left
   `main.mediaServerType=4` (NOT_CONFIGURED), `jellyfin.libraries=[]` and
