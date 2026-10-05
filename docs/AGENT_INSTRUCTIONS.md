@@ -335,7 +335,7 @@ about to touch an app.
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.9, pve (proxy only), and the
-media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.4.1, shelfmark v1.3.9, immich valkey
+media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.0, shelfmark v1.3.9, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
 ### Persistent volumes
@@ -880,7 +880,7 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   a bare image bump would start the new pod against the live SQLite DB while
   the old one still runs. 12.0 notes: `EnableLegacyAuthorization` is now
   `false` (flag still exists as a fallback), a full library scan is required
-  after the upgrade, and seerr 3.4.1 is compatible (modern
+  after the upgrade, and seerr 3.5.0 is compatible (modern
   `Authorization: MediaBrowser` auth, no removed routes used).
 - **immich DB**: central PostgreSQL 192.168.254.104, database `immich`
   (role immich, password in the sealed secret). Extensions pre-installed:
@@ -888,7 +888,8 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   cube, earthdistance. Immich server limit 1.5Gi (1Gi OOMs on migrations).
   pg-backup.sh includes immich (tables users/assets).
 - **seerr**: config at /app/config (not /config!), image pinned
-  `ghcr.io/seerr-team/seerr:v3.4.1`. Admin bootstrapped via
+  `ghcr.io/seerr-team/seerr:v3.5.0` (upgrade strategy `Recreate` — the config
+  is a SQLite DB on a RWO volume, so a rolling update would mount it twice). Admin bootstrapped via
   DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
   the session cookie is required. The manual bootstrap originally left
   `main.mediaServerType=4` (NOT_CONFIGURED), `jellyfin.libraries=[]` and
@@ -966,7 +967,9 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   `jellyfin-recently-added-scan`/`jellyfin-full-scan` jobs registered, and the
   daily availability sync logs `An admin is not configured.`. Fix (all three
   are required): `POST /api/v1/settings/main` `{"mediaServerType":2}`
-  (JELLYFIN=2), `GET /api/v1/settings/jellyfin/library?sync=true&enable=<ids>`,
+  (JELLYFIN=2), sync libraries with `POST /api/v1/settings/jellyfin/library/sync`
+  and enable each with `PUT /api/v1/settings/jellyfin/library/{libraryId}`
+  (v3.5.0 removed the old `GET .../library?sync=true&enable=<ids>` form),
   and set `user.id=1.jellyfinUserId` to the Jellyfin admin's user id (DB edit
   while the pod is stopped — no API exists for it). Restart the pod afterwards
   so `schedule.ts` registers the Jellyfin jobs. Seerr config backup:
