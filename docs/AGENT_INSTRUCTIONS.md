@@ -332,7 +332,7 @@ about to touch an app.
 | sealed-secrets | sealed-secrets | 2.5.19 |
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
-Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.6.1,
+Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.10.4,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.9, pve (proxy only), and the
 media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.0, shelfmark v1.3.9, immich valkey
