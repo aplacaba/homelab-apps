@@ -335,7 +335,7 @@ about to touch an app.
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.10.4,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.8.9, pve (proxy only), and the
-media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.0, shelfmark v1.3.9, immich valkey
+media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.1, shelfmark v1.3.9, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
 ### Persistent volumes
@@ -888,7 +888,7 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   cube, earthdistance. Immich server limit 1.5Gi (1Gi OOMs on migrations).
   pg-backup.sh includes immich (tables users/assets).
 - **seerr**: config at /app/config (not /config!), image pinned
-  `ghcr.io/seerr-team/seerr:v3.5.0` (effectively single-pod rollout:
+  `ghcr.io/seerr-team/seerr:v3.5.1` (effectively single-pod rollout:
   `maxSurge: 0` / `maxUnavailable: 1` — the config is a SQLite DB on a RWO
   volume, so two pods must never mount it at once). Admin bootstrapped via
   DB+settings.json (permissions=2 ADMIN); X-Api-Key header auth works where
