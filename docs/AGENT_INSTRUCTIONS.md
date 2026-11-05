@@ -716,12 +716,29 @@ Flux controllers  →  PrometheusRule (flux-alerts)  →  Alertmanager  →  Tel
 | `HelmReleaseFailed` | `gotk_reconcile_condition{status="False", kind="HelmRelease"}` | 5m |
 | `SourceFailed` | `gotk_reconcile_condition{status="False", kind=~"GitRepository\|HelmRepository\|OCIRepository\|Bucket"}` | 5m |
 
+### Alert policy
+
+Telegram is reserved for **outage/availability** alerts: pod/deployment/statefulset/daemonset
+health (`KubePodNotReady`, `KubePodCrashLooping`, `KubeDeploymentReplicasMismatch`, …), node
+down/unreachable, kubelet/API/target down, certificate expiry, persistent-volume errors, and
+Flux reconcile failures.
+
+Resource/capacity alerts are routed to a `null` receiver and never notified: CPU throttling,
+CPU/memory overcommit and quota, HPA maxed out, node CPU/memory/disk saturation, file-descriptor
+and conntrack limits, filesystem/PV space and inode filling, node pressure/eviction, plus the
+`Watchdog` heartbeat and `InfoInhibitor` meta-alert. `KubeProxyDown` is also masked because k3s
+does not expose scrapeable kube-proxy metrics (permanent false positive).
+
+The matcher lives in `route.routes` of the sealed `alertmanager-config`; add/remove names in the
+`^(...)` regex and re-seal.
+
 ### Routing behavior
 
 - Alerts grouped by `alertname` + `namespace` (one Telegram message per alert type)
 - First alert sent immediately (10s `group_wait`)
 - New alerts in same group wait 5 min before sending
 - Repeat every 4 hours while unresolved
+- Resource/capacity alerts go to `null` (no message)
 
 ### Rotating Telegram credentials
 
@@ -746,12 +763,19 @@ stringData:
       group_interval: 5m
       repeat_interval: 4h
       receiver: 'telegram'
+      routes:
+        - receiver: 'null'
+          matchers:
+            - name: alertname
+              value: '^(CPUThrottlingHigh|Kube(CPU|Memory)(Overcommit|QuotaOvercommit)|KubeQuota.*|KubeletTooManyPods|KubeHpa.*|KubeNode(Pressure|Eviction)|KubePersistentVolume(FillingUp|InodesFillingUp)|Node(CPUHighUsage|MemoryHighUtilization|DiskIOSaturation|SystemSaturation|HighNumberConntrackEntriesUsed|FileDescriptorLimit|Filesystem.*)|KubeProxyDown|Watchdog|InfoInhibitor)'
+              regex: true
     receivers:
       - name: 'telegram'
         telegram_configs:
           - bot_token: '$BOT'
             chat_id: $CID
             parse_mode: 'HTML'
+      - name: 'null'
 SEOF
 unset BOT CID
 ```
