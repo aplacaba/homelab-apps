@@ -766,9 +766,7 @@ stringData:
       routes:
         - receiver: 'null'
           matchers:
-            - name: alertname
-              value: '^(CPUThrottlingHigh|Kube(CPU|Memory)(Overcommit|QuotaOvercommit)|KubeQuota.*|KubeletTooManyPods|KubeHpa.*|KubeNode(Pressure|Eviction)|KubePersistentVolume(FillingUp|InodesFillingUp)|Node(CPUHighUsage|MemoryHighUtilization|DiskIOSaturation|SystemSaturation|HighNumberConntrackEntriesUsed|FileDescriptorLimit|Filesystem.*)|KubeProxyDown|Watchdog|InfoInhibitor)'
-              regex: true
+            - 'alertname=~"^(CPUThrottlingHigh|Kube(CPU|Memory)(Overcommit|QuotaOvercommit)|KubeQuota.*|KubeletTooManyPods|KubeHpa.*|KubeNode(Pressure|Eviction)|KubePersistentVolume(FillingUp|InodesFillingUp)|Node(CPUHighUsage|MemoryHighUtilization|DiskIOSaturation|SystemSaturation|HighNumberConntrackEntriesUsed|FileDescriptorLimit|Filesystem.*)|KubeProxyDown|Watchdog|InfoInhibitor)"'
     receivers:
       - name: 'telegram'
         telegram_configs:
