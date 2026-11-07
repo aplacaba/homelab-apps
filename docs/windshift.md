@@ -2,7 +2,7 @@
 
 Deployed 2026-09-24, replacing Papra (backup of the Papra PVC in
 `~/backups/papra-2026-09-24/` on the admin workstation). Single Go container —
-`ghcr.io/windshiftapp/windshift:v0.8.9`, scratch image, UID 65534, port 8080 —
+`ghcr.io/windshiftapp/windshift:v0.9.3`, scratch image, UID 65534, port 8080 —
 with the database on the central PostgreSQL box (`192.168.254.104`, db + role
 `windshift`) and attachments/plugins on a 5Gi `local-path` PVC. Raw manifests
 in `clusters/pk3s/windshift/`.
@@ -50,6 +50,18 @@ kubectl port-forward -n windshift deploy/windshift 8080:8080
 
 ### Gotchas
 
+- **Upgraded 0.8.9 → 0.9.3 on 2026-11-07** (skipping 0.9.0–0.9.2; migrations
+  run automatically in sequence). 0.9.x requires **PostgreSQL ≥ 15** (central
+  box is 18.3) and refuses to start on older servers. Pre-upgrade custom-format
+  dump kept on the admin workstation at
+  `~/backups/windshift/pre-0.9.3-2026-11-07.dump` (plus the nightly
+  `pg-backup.sh` run). The 0.9.2 upgrade also builds a GIN `tsvector` index on
+  `items` with `CREATE INDEX CONCURRENTLY`, so the first start after the bump is
+  slower on a large database.
+- **0.9.3 makes plugins default-deny:** a plugin manifest must now declare host
+  functions (`process.exec`, `network.egress`, …) and plugin routes require a
+  session unless they opt into `auth: none` plus `PLUGIN_PUBLIC_ROUTES=true`.
+  No plugins are installed here, so nothing to change on an upgrade.
 - **Do not pin 0.8.8:** its frontend misses the v2 API migration for workflows,
   so status/workflow changes silently don't apply and new statuses don't show
   (upstream issue #268). Fixed in 0.8.9. (The windshift.app download page
