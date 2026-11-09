@@ -9,7 +9,10 @@ spec:
   replicas: 1
   # SQLite in /config: never let old and new pods share it during a rollout
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: shelfmark
