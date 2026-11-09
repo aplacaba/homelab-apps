@@ -335,7 +335,7 @@ about to touch an app.
 Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.10.4,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.9.3, pve (proxy only), and the
-media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.1, shelfmark v1.3.9, immich valkey
+media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.1, shelfmark v1.6.2, immich valkey
 9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
 ### Persistent volumes
