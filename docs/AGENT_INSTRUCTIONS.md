@@ -14,7 +14,7 @@ GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Fl
 | **Ingress** | Traefik v3.7 (chart 41.4.0) with IngressRoute CRD, NodePort 30080/30443 |
 | **TLS** | cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
-| **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `history.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
+| **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
 | **Secrets** | SealedSecrets (`sealed-secrets` chart 2.5.19, controller 0.31.0) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` (k3s built-in, master) + `media-local-path` (dedicated provisioner pinned to `k3s-media`) |
@@ -77,7 +77,6 @@ terraform/
 
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
-├── atuin/                     # Atuin 18.17 shell history sync (raw manifests, external PostgreSQL at 192.168.254.104) — public history.watchtoken.org
 ├── actual-budget/             # Actual Budget 26.8 personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
 ├── cert-manager/              # cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
@@ -276,7 +275,6 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `sealed-secrets` | SealedSecrets controller (chart 2.5.19) | — |
 | `forgejo` | Forgejo 15.0.6 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
 | `forgejo-runner` | CI runner 12.7.3 + DinD sidecar | — |
-| `atuin` | Atuin 18.17 server (`atuin:8888`), external PostgreSQL | public `history.watchtoken.org` |
 | `actual-budget` | Actual Budget 26.8, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
 | `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
 | `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
@@ -332,7 +330,7 @@ about to touch an app.
 | sealed-secrets | sealed-secrets | 2.5.19 |
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
-Raw-manifest apps (no HelmRelease): atuin 18.17.1, actual-budget 26.8.1, cloudflared 2026.10.4,
+Raw-manifest apps (no HelmRelease): actual-budget 26.8.1, cloudflared 2026.10.4,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.9.3, pve (proxy only), and the
 media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.1, shelfmark v1.6.2, immich valkey
@@ -343,7 +341,6 @@ media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.1, shelfmark v1
 | Namespace | PVC (storage class) | Size |
 |---|---|---|
 | actual-budget | `actual-budget-data` (local-path) | 2Gi |
-| atuin | `atuin-config` (local-path) | 100Mi |
 | floci | `floci-data` (local-path) | 5Gi |
 | forgejo | `gitea-shared-storage` (local-path) | 10Gi |
 | forgejo-runner | `dind-data` (local-path) | 20Gi |
@@ -547,9 +544,9 @@ File operations run from a PVC-mounted pod (image `nouchka/sqlite3`, mount `gite
 
 ## PostgreSQL backups (192.168.254.104)
 
-The dedicated PostgreSQL box backs up the app databases (`atuin`, `forgejo`, `immich`, `windshift`; HRIS pending) nightly at 02:30 via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`atuin`: `records`/`users`; `forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
+The dedicated PostgreSQL box backs up the app databases (`forgejo`, `immich`, `windshift`; HRIS pending; `atuin` too until it is dropped — the app was removed from the cluster 2026-11-09 but its database was left in place) nightly at 02:30 via `/usr/local/bin/pg-backup.sh` (crontab as the `postgres` user, local peer auth). The wrapper dumps with `pg_dump -Fc --snapshot` and records dump-time primary-table counts in the SAME repeatable-read snapshot, so each `backup.log` line (`forgejo`: `user`/`repository`/`issue`/`action`) describes the exact dump content. Failures emit `pg_backup FAILED: <db>` on stdout (cron mail to the admin), log a `FAILED` line, and timestamp `/backups/postgres/last-failure`. Retention: 14 days (`find -mtime +14 -delete`). `/backups/postgres` is owned by `postgres:postgres`.
 
-**The `.104` address is a DHCP reservation on the Globe router** (MAC `BC:24:11:11:A0:89` for LXC 102 `postgresql.hl`; the container itself runs `ip=dhcp`). If the router loses that reservation, the container gets a different lease and every app hardcoding `.104` — windshift, forgejo, hris, immich, and atuin (`ATUIN_DB_URI` inside its SealedSecret) — fails with `dial tcp 192.168.254.104:5432: connect: connection refused`, while the database and local backups stay healthy. Re-add the reservation, then renew inside the LXC (`dhclient -r eth0 && dhclient eth0`, verify with `ip -4 addr show eth0`). A device that held `.104` before the reservation can keep answering ARP for it until its own lease renews; evict it (toggle its Wi-Fi) or flush the k3s nodes' neighbour entry if the apps flap.
+**The `.104` address is a DHCP reservation on the Globe router** (MAC `BC:24:11:11:A0:89` for LXC 102 `postgresql.hl`; the container itself runs `ip=dhcp`). If the router loses that reservation, the container gets a different lease and every app hardcoding `.104` — windshift, forgejo, hris and immich — fails with `dial tcp 192.168.254.104:5432: connect: connection refused`, while the database and local backups stay healthy. Re-add the reservation, then renew inside the LXC (`dhclient -r eth0 && dhclient eth0`, verify with `ip -4 addr show eth0`). A device that held `.104` before the reservation can keep answering ARP for it until its own lease renews; evict it (toggle its Wi-Fi) or flush the k3s nodes' neighbour entry if the apps flap.
 
 ### Monthly restore test (manual)
 
