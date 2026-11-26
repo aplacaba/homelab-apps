@@ -764,7 +764,7 @@ editing this repo.
 
 | Piece | Detail |
 |---|---|
-| Dashboard | `digest-dashboard` (nginx 1.30.1-alpine, 10m/32Mi) serving one static page; data fetched from `/status.json` on the PVC |
+| Dashboard | `digest-dashboard` (nginx 1.30.7-alpine — **never below 1.30.7**, CVE-2026-123007/Nginx2Shell; 10m/32Mi) serving one static page; data fetched from `/status.json` on the PVC |
 | Worker | CronJob `digest-worker` (alpine/k8s:1.37.2), **Saturdays 04:00, even ISO weeks only** — CronJob schedules cannot express biweekly, so the script exits on odd weeks |
 | Storage | `digest-data` (100Mi local-path): `status.json` + `history.jsonl` (one summary per week, ≤52) |
 | RBAC | read-only ClusterRole (helmreleases, helmrepositories, deployments) + a flux-system Role limited by `resourceNames` to `forgejo-registry-auth` and `ghcr-registry-auth` |
