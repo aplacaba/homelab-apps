@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Flux Operator**
+GitOps repository for a **two-node k3s v1.37.2 homelab cluster** managed by **Flux Operator**
 (FluxInstance `flux`, distribution 2.10.x; operator v0.63.1). The cluster syncs from this repo
 (`github.com/aplacaba/homelab-apps.git`) at `./clusters/pk3s`.
 
 | Aspect | Detail |
 |---|---|
-| **Cluster** | pk3s — `k3s-master` (192.168.254.50, control plane) + `k3s-media` (192.168.254.109, label/taint `media=yes`); k3s v1.36.4+k3s1 on Debian 13 (trixie) |
+| **Cluster** | pk3s — `k3s-master` (192.168.254.50, control plane) + `k3s-media` (192.168.254.109, label/taint `media=yes`); k3s v1.37.2+k3s1 (containerd 2.3.7, SQLite datastore) on Debian 13 (trixie) |
 | **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub; controllers `source`, `kustomize`, `helm`, `notification` |
 | **Sync cadence** | GitRepository polls every **1m**, root Kustomization re-applies every **10m** (`prune: true`), each HelmRelease reconciles on its own interval (1h) |
 | **Ingress** | Traefik v3.8 (chart 43.0.0) with IngressRoute CRD, NodePort 30080/30443 |
@@ -292,7 +292,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
 | `pve` | Reverse proxy to Proxmox VE `192.168.254.165:8006` | LAN `https://pve.local` (self-signed) |
 | `watcharr` | Watcharr 4.4.0, 5Gi PVC | LAN `watcharr.local` |
-| `kube-system` | k3s internals: coredns 1.14.6, metrics-server 0.9.0, local-path-provisioner 0.0.37, svclb | — |
+| `kube-system` | k3s internals: coredns 1.14.7, metrics-server 0.9.0, local-path-provisioner 0.0.37, svclb | — |
 
 Stray resources **not** managed by Flux (leftovers from earlier node work, safe to delete by hand):
 the `debug-tmp` namespace plus two `Completed` `node-debugger-k3s-master-*` pods — one in
@@ -402,7 +402,7 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 23. **Consistent multi-PVC backup required:** Nextcloud spans **three** volumes — `nextcloud-nextcloud` 100Gi (`/var/www/html`), `data-nextcloud-mariadb-0` 8Gi and `redis-data-nextcloud-redis-master-0` 5Gi. Data + database must be backed up together under maintenance mode (`occ maintenance:mode --on` → dump DB → copy data → `--off`); the Redis volume is a cache and can be rebuilt. Backing up the data volume without the database = data loss on restore.
 24. **`overwritehost` is single-valued:** Setting it to `sync.watchtoken.org` means `.local` access generates public-host URLs for share links and WebDAV endpoints. This is expected and correct — the canonical hostname is the public one. Do not fight it with fragile workarounds.
 25. **`local-path` Delete reclaim on all PVCs:** Same as papra (gotcha #20) — removing nextcloud from the root kustomization prunes all PVCs and their data. The chart's `helm.sh/resource-policy: keep` annotation prevents Helm uninstall from deleting them, but Flux pruning on kustomization removal will still delete them. Back up out of band.
-26. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (k3s `registries.yaml` only mirrors `192.168.254.50:30080`). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
+26. **In-cluster ClusterIP and public hostname are the SAME Forgejo registry:** The app CI pushes images to `10.43.55.141:3000` (the `forgejo-http` ClusterIP, plain HTTP) — but kubelet **cannot** pull from it: the nodes have no containerd mirror for the ClusterIP (only `k3s-master` has a `/etc/rancher/k3s/registries.yaml`, mirroring `192.168.254.50:30080`; `k3s-media` has none — verified 2026-11-26). Pull from `fgit.watchtoken.org` (HTTPS, same registry via tunnel → Traefik → `forgejo-http:3000`) with an imagePullSecret in the workload's namespace. Never use the ClusterIP in an image reference.
 27. **Media public DNS must stay gray-clouded:** the `watchtoken.org` apex plus `seerr`/`pangolin` A records (`proxied = false`) route straight to the Pangolin VPS. Setting `proxied = true` (or a stray wildcard A record) would send video through Cloudflare — a ToS §2.8 violation at 4-6 concurrent streams.
 28. **Pangolin VPS is not in git:** `/opt/pangolin` (config + SQLite) is backed up weekly via a systemd timer on the master (`pangolin-backup.timer`, Sun 02:30) → `/home/backups/pangolin`. A VPS rebuild = reinstall + restore dir; newt credentials are unchanged so the cluster side needs nothing.
 29. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
@@ -512,6 +512,12 @@ hostPath `/var/lib/alloy` (the chart default `/tmp/alloy` is lost on restart). `
 true` only affects files with no saved position. The cutover was verified by exact label-set parity
 against 24h of Promtail streams and matching tailed-file counts (73 master / 30 media). Leftover:
 the old `/run/promtail` hostPath on each node (positions only, safe to delete).
+43. **Never cordon a node for a k3s upgrade here:** an upgrade redeploys k3s's bundled
+CoreDNS (1 replica, `maxUnavailable: 1`), and with `k3s-master` cordoned and `k3s-media`
+tainted the new pod has nowhere to go — the old one is already gone, so cluster DNS is
+down until uncordon (hit 2026-11-26, ~1 min). Pods cannot move off either node anyway
+(local-path volumes, media pin), so cordon/drain buys nothing. See the k3s upgrade runbook
+under Media Stack → Node join/upgrade SOP.
 
 
 ## Forgejo Runner
@@ -1142,20 +1148,83 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=<cluster-version> \
 # upgrades must match the cluster's k3s version
 ```
 
-Upgrade gotchas (learned 2026-08-30, v1.34.4 → v1.36.4):
+### k3s upgrade runbook (last run 2026-11-26: v1.36.4 → v1.36.6 → v1.37.2)
 
-- **Upgrade the control plane one minor at a time** (1.34 → 1.35 → 1.36). Re-run
-  the installer on the master with the same CLI flags (`server --disable=traefik`) —
-  CLI flags are NOT preserved across reinstalls, only `K3S_*` env vars are.
-- **Agent re-install must be run as root with the token passed explicitly.** The
-  agent env file (`/etc/systemd/system/k3s-agent.service.env`) is root-owned and
-  not readable by the SSH user — sourcing it as the user silently drops
-  `K3S_TOKEN`/`K3S_URL`, and the installer overwrites the env file with empty
-  values, leaving the agent crash-looping. Pipe the token from the master
-  (`/var/lib/rancher/k3s/server/node-token`) via stdin to a `sudo sh -c` on the VM.
-- The `media-mount.conf` systemd drop-in survives agent reinstalls.
-- Running containers survive a k3s service restart (no pod restarts observed
-  across the upgrade), so app downtime is near-zero for both hops.
+k3s lives on the nodes, not in this repo: both were installed with the `get.k3s.io` script
+(no system-upgrade-controller), configured by CLI flags only — there is **no**
+`/etc/rancher/k3s/config.yaml` on either node, and only the master has `registries.yaml`.
+
+| Node | SSH | Install flags (must be re-passed on every install) |
+|---|---|---|
+| `k3s-master` | `admin@192.168.254.50` (passwordless sudo) | `server --disable traefik --disable gateway-api-crd` |
+| `k3s-media` | `aplacaba@192.168.254.109` (passwordless sudo) | `agent --node-name k3s-media --node-label media=yes --node-taint media=yes:NoSchedule --data-dir /home/rancher/k3s` (+ `K3S_URL`/`K3S_TOKEN` from the root-only env file) |
+
+Per hop, **server first, then agent**, one minor at a time, with the version pinned (check the
+target in `https://update.k3s.io/v1-release/channels` and read the k3s + Kubernetes release
+notes for removed APIs; `kubectl get --raw /metrics | grep apiserver_requested_deprecated_apis`
+shows what is still being called). Download the installer once and copy the same file to both
+nodes. **Do not cordon or drain** (gotcha #43).
+
+1. **Snapshot the master** — the datastore is **SQLite/kine** (`server/db/state.db`, the `etcd/`
+   dir there is an unused leftover), so `k3s etcd-snapshot` does not apply and there is no
+   `sqlite3` on the host: stop k3s (`KillMode=process` — containers keep running; **never**
+   `k3s-killall.sh`) and copy.
+   ```bash
+   D=/home/backups/k3s/<date>-pre-<target>; sudo mkdir -p $D
+   sudo systemctl stop k3s
+   sudo tar -C /var/lib/rancher/k3s -czf $D/k3s-server.tgz server/db server/token server/cred server/tls
+   sudo tar -czf $D/etc.tgz /etc/rancher/k3s /etc/systemd/system/k3s.service{,.env}
+   sudo cp /usr/local/bin/k3s $D/k3s-<current>.bin; sudo gzip -t $D/k3s-server.tgz
+   ```
+   Also copy it off the box (`~/backups/k3s/` on the workstation) and re-export the
+   sealed-secrets keys (Secret Management).
+2. **Upgrade the master** (the install starts k3s again, so the API is down only ~1 min):
+   `sudo INSTALL_K3S_VERSION='<target>' sh /tmp/k3s-install.sh server --disable traefik --disable gateway-api-crd`
+3. **Upgrade the agent** — back up `k3s-agent.service{,.env,.d/}` to `/home/backups/k3s/` on the
+   node, then source the env file **as root** inside the same `sudo` (sourcing it as the SSH user
+   drops the token and the installer writes an empty env file → agent crash-loops):
+   ```bash
+   sudo sh -c 'set -a; . /etc/systemd/system/k3s-agent.service.env; set +a
+     [ -n "$K3S_TOKEN" ] && [ -n "$K3S_URL" ] || exit 1
+     INSTALL_K3S_VERSION="<target>" sh /tmp/k3s-install.sh agent --node-name k3s-media \
+       --node-label media=yes --node-taint media=yes:NoSchedule --data-dir /home/rancher/k3s'
+   ```
+   Afterwards confirm the env file still has both keys, `media-mount.conf` is still in
+   `k3s-agent.service.d/` (`systemctl show k3s-agent -p RequiresMountsFor` →
+   `/home/new-media`) and `findmnt /home/new-media`.
+4. **Verify after each node:** `kubectl get nodes -o wide` (version, Ready, `media` taint/label),
+   `kubectl get --raw '/readyz?verbose'`, kube-system pods + CoreDNS rollout, no pods outside
+   Running/Completed, `kubectl get ks,hr -A` all `True`, LAN (`curl -H 'Host: grafana.local'
+   http://192.168.254.50:30080/`) and public ingress, and on the media hop a jellyfin QSV encode:
+   ```bash
+   kubectl -n media exec deploy/jellyfin -- /usr/lib/jellyfin-ffmpeg/ffmpeg -hide_banner -loglevel error \
+     -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device qsv=qs@va -init_hw_device opencl=ocl@va \
+     -filter_hw_device qs -f lavfi -i testsrc2=duration=3:size=1920x1080:rate=30 \
+     -vf 'format=nv12,hwupload=extra_hw_frames=64' -c:v h264_qsv -f null -
+   ```
+   plus one real forgejo-runner job (DinD starts a `node:22-bookworm` job container —
+   `kubectl -n forgejo-runner exec deploy/forgejo-runner -c dind -- docker events --since 5m ...`).
+5. **Rollback:** re-run the installer with the previous version (agent first if the server is
+   being rolled back). For a server minor rollback also stop k3s and restore `server/` from the
+   pre-hop tarball before installing the old version — cluster-state changes made after the
+   snapshot are lost; Flux re-applies whatever comes from git.
+
+Upgrade gotchas:
+
+- **CLI flags are NOT preserved across reinstalls**, only `K3S_*` env vars are — always pass
+  the full flag set above.
+- **`gateway-api-crd` (k3s ≥ 1.37):** k3s 1.37 bundles a `gateway-api-crd` HelmChart
+  (`takeOwnership`/`forceConflicts`) that `--disable traefik` does NOT suppress. It is disabled
+  here so no Gateway API CRDs exist outside GitOps (nothing uses them — Traefik runs from its
+  HelmRelease without the Gateway provider). Drop the flag only if that changes.
+- **Upgrade the control plane one minor at a time** (1.34 → 1.35 → 1.36 → 1.37); the agent may
+  lag the server during a hop.
+- Running containers survive a k3s service restart: no pod or container restarts on either node
+  across the 2026-08-30 and 2026-11-26 upgrades. Only the bundled kube-system addons roll
+  (CoreDNS/local-path on version bumps) — hence gotcha #43.
+- Snapshots of the 2026-11-26 run: `/home/backups/k3s/2026-11-26-pre-v1.36.6+k3s1` and
+  `…-pre-v1.37.2+k3s1` on the master (+ old `k3s` binaries), agent unit backups under the same
+  path on `k3s-media`, and copies in `~/backups/k3s/` on the workstation.
 
 ## Pangolin Media Relay
 

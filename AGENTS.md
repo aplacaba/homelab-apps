@@ -1,6 +1,6 @@
 # homelab-apps — agent entry point
 
-GitOps repository for the **k3s v1.36 homelab cluster** (`pk3s`), synced by Flux Operator from
+GitOps repository for the **k3s v1.37 homelab cluster** (`pk3s`), synced by Flux Operator from
 `./clusters/pk3s` on `main`.
 
 ## Read this first
