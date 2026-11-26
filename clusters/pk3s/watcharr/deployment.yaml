@@ -30,6 +30,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            # 4.3+ serves the UI over a unix socket at /tmp/watcharrui;
+            # the root filesystem is read-only, so /tmp must be writable.
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /
@@ -59,3 +63,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: watcharr-data
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
