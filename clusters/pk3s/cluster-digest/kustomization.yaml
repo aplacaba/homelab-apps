@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - cronjob.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingressroute.yaml
+
+# Sources of truth live as plain files in this directory; kustomize renders
+# them as ConfigMaps with a content-hash suffix, so editing a file changes the
+# referenced ConfigMap name and Flux rolls the pods automatically.
+configMapGenerator:
+  - name: digest-worker
+    namespace: cluster-digest
+    files:
+      - scripts/worker.sh
+  - name: digest-raw-images
+    namespace: cluster-digest
+    files:
+      - raw-images.yaml
+  - name: digest-nginx
+    namespace: cluster-digest
+    files:
+      - nginx.conf
+  - name: digest-page
+    namespace: cluster-digest
+    files:
+      - index.html

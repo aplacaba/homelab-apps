@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: digest-dashboard
+  namespace: cluster-digest
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`dash.local`)
+      services:
+        - name: digest-dashboard
+          port: 80

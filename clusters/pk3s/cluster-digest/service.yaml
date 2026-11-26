@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: digest-dashboard
+  namespace: cluster-digest
+  labels:
+    app: digest-dashboard
+spec:
+  selector:
+    app: digest-dashboard
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

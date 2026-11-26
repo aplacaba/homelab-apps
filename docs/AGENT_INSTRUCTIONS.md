@@ -80,6 +80,7 @@ clusters/pk3s/
 ├── actual-budget/             # Actual Budget 26.11 personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
 ├── cert-manager/              # cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
+├── cluster-digest/            # Version-drift dashboard + biweekly check worker (raw manifests) — LAN dash.local
 ├── cv-datastar/               # CV site, chart 0.3.0 — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (OCI registry)
 ├── floci/                     # FLOCI tool (raw manifests, `floci/floci:2.5.0`) — LAN floci.local
 ├── flux-dashboard/            # Flux web UI (raw manifests) — LAN fluxops.local
@@ -275,6 +276,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `flux-system` | Flux Operator + the four controllers, HelmRepositories, `flux-dashboard` UI (`flux-operator:9080`) | LAN `fluxops.local` |
 | `traefik` | Ingress controller (chart 43.0.0 → Traefik v3.8.0), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
 | `cloudflared` | Cloudflare Tunnel connector (metrics on `:2000`, scraped) | — (dials out) |
+| `cluster-digest` | Version-drift dashboard (nginx) + biweekly CronJob worker + 100Mi PVC | LAN `dash.local` |
 | `cert-manager` | cert-manager v1.21 + Let's Encrypt DNS-01 ClusterIssuers | — |
 | `sealed-secrets` | SealedSecrets controller (chart 2.22.0, controller 0.41.2) | — |
 | `forgejo` | Forgejo 15.0.12 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
@@ -752,6 +754,52 @@ consider whether the 0.x line is still the right home for this app).
 Object Read & Write; a read-only token still boots, so uploads fail silently. (3) The chart's
 `appVersion` must name a published image tag, or the pod hits `ImagePullBackOff` — nothing checks this
 for you under the range, so publish the image before tagging the chart release.
+
+## Cluster Digest (dash.local)
+
+Version-drift dashboard: what is running vs what is available, for every HelmRelease and a
+curated list of raw-manifest images. LAN-only (`http://dash.local:30080`), no auth, no public
+route. It is a **visibility tool only** — it never upgrades anything; upgrades still happen by
+editing this repo.
+
+| Piece | Detail |
+|---|---|
+| Dashboard | `digest-dashboard` (nginx 1.30.1-alpine, 10m/32Mi) serving one static page; data fetched from `/status.json` on the PVC |
+| Worker | CronJob `digest-worker` (alpine/k8s:1.37.2), **Saturdays 04:00, even ISO weeks only** — CronJob schedules cannot express biweekly, so the script exits on odd weeks |
+| Storage | `digest-data` (100Mi local-path): `status.json` + `history.jsonl` (one summary per week, ≤52) |
+| RBAC | read-only ClusterRole (helmreleases, helmrepositories, deployments) + a flux-system Role limited by `resourceNames` to `forgejo-registry-auth` and `ghcr-registry-auth` |
+
+How versions are resolved:
+
+- **HelmReleases** — running is `status.lastAttemptedRevision`; latest is the newest stable
+  version in the release's HelmRepository. HTTP repos are parsed from `index.yaml` (awk; the
+  first entry is not always the newest stable — cert-manager publishes alphas at the top), OCI
+  repos via the registry tag API (`registry-1.docker.io`, `ghcr.io`, `codeberg.org`,
+  `fgit.watchtoken.org` — the private hris chart resolves through the sealed GHCR pull secret).
+  A HelmRelease whose `spec.chart.spec.version` is a range (`0.x`, `*`) is labelled
+  `auto-follow`.
+- **Raw images** — the curated list is `raw-images.yaml`: `name`, `image`, `ns`, optional
+  `note: pinned`. Running tag is read from the live Deployment (including `initContainers` —
+  gluetun lives there). Latest comes from the `:latest` manifest's
+  `org.opencontainers.image.version` label when the image sets one (LSIO images do — this
+  yields the exact `<version>-ls<N>` build without paginating thousands of tags), falling back
+  to a paginated tag list. Images pinned with `note: pinned` (jellyfin) are never compared.
+- **Bump classification** — major/minor/patch from numeric fields, with LSIO build numbers
+  (`-ls<N>`, including compound `5.3.0_v2.1.2-ls487` tags) compared as a 4th component.
+  Impossible comparisons (e.g. jellyfin's `version-12.4ubu2604`) render `unknown`, not a false
+  "outdated".
+
+**Editing the app:** the ConfigMaps are kustomize `configMapGenerator` outputs — edit
+`scripts/worker.sh`, `raw-images.yaml`, `nginx.conf` or `index.html` and commit; the content-hash
+suffix in the generated ConfigMap name changes, so Flux rolls the CronJob's next pod and the
+dashboard Deployment automatically. Never hand-write the ConfigMaps.
+
+**Verify:** `kubectl -n cluster-digest get pods,cronjob` and `curl -s http://dash.local:30080/status.json`
+(or `kubectl -n cluster-digest exec deploy/digest-dashboard -- wget -qO- localhost:8080/status.json`).
+The page shows a stale-worker warning if `generated` is more than 16 days old — that is the one
+silent failure mode (worker stopped running). To force a run after a merge:
+`kubectl -n cluster-digest create job --from=cronjob/digest-worker manual-$(date +%s)` (the
+biweekly gate still applies; odd weeks exit immediately by design).
 
 ## Terraform Workflow
 

@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: digest-worker
+  namespace: cluster-digest
+spec:
+  # Saturdays 04:00; the script exits early on odd ISO weeks (biweekly)
+  schedule: "0 4 * * 6"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: digest-worker
+        spec:
+          serviceAccountName: digest-worker
+          restartPolicy: Never
+          containers:
+            - name: worker
+              # kubectl + curl + jq + python3(yaml) in one image; pin the tag
+              image: alpine/k8s:1.37.2
+              imagePullPolicy: IfNotPresent
+              command: ["bash", "/scripts/worker.sh"]
+              env:
+                - name: OUT_DIR
+                  value: /data
+                - name: RAW_CONFIG
+                  value: /config/raw-images.yaml
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: raw-images
+                  mountPath: /config
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: script
+              configMap:
+                name: digest-worker
+            - name: raw-images
+              configMap:
+                name: digest-raw-images
+            - name: data
+              persistentVolumeClaim:
+                claimName: digest-data
