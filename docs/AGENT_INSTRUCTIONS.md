@@ -3,7 +3,7 @@
 ## Project Overview
 
 GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Flux Operator**
-(FluxInstance `flux`, distribution 2.8.x). The cluster syncs from this repo
+(FluxInstance `flux`, distribution 2.10.x; operator v0.63.1). The cluster syncs from this repo
 (`github.com/aplacaba/homelab-apps.git`) at `./clusters/pk3s`.
 
 | Aspect | Detail |
@@ -407,10 +407,20 @@ sabnzbd, flaresolverr and floci carry no tag pin, so a pod restart can silently 
 "what is running" is not recorded in git for those. Jellyfin is the deliberate exception (pinned
 `version-12.4ubu2604` with its own upgrade SOP). Pin a tag here when a version must be reproducible.
 
-32. **Flux itself is managed by the FluxInstance, not by per-controller manifests:** `flux-instance.yaml`
-declares distribution `2.8.x` plus the four components, and the Flux Operator re-renders the
-controllers (`fluxcd.controlplane.io/reconcileEvery: "1h"`). Upgrading Flux means editing that file;
-there are no controller Deployments to bump by hand.
+32. **Flux itself is managed by the FluxInstance, not by per-controller manifests, and neither
+it nor the operator is synced by Flux:** `flux-instance.yaml` (repo root, outside
+`./clusters/pk3s`) declares distribution `2.10.x` plus the four components, and the Flux Operator
+re-renders the controllers (`fluxcd.controlplane.io/reconcileEvery: "1h"`). The FluxInstance was
+created with `kubectl apply -f flux-instance.yaml`, and the operator is a plain Helm release
+(`helm -n flux-system list` → `flux-operator`, default values, CRDs in templates). Upgrades are
+therefore two manual steps, operator first, because each operator release supports a bounded set
+of Flux minors (Flux 2.9 needs operator ≥ v0.53, Flux 2.10 needs ≥ v0.62):
+`helm upgrade flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator --version <v> -n flux-system`,
+then edit and `kubectl apply -f flux-instance.yaml`. `migrateResources: true` (default) migrates
+CRD stored versions. Before a Flux minor bump, grep the repo for removed `apiVersion`s; 2.9
+dropped `notification.toolkit.fluxcd.io/v1beta2` and `image.toolkit.fluxcd.io/v1beta2`.
+Rollback: `helm rollback flux-operator -n flux-system` plus re-apply the previous
+`distribution.version`.
 
 33. **The scrobble stack is LAN-only by design:** Multi-Scrobbler's dashboard has no
 authentication (upstream warns against public exposure) and Koito's read endpoints are

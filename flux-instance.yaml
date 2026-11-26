@@ -8,7 +8,7 @@ metadata:
     fluxcd.controlplane.io/reconcileEvery: "1h"
 spec:
   distribution:
-    version: "2.8.x"
+    version: "2.10.x"
     registry: "ghcr.io/fluxcd"
   components:
     - source-controller
