@@ -11,7 +11,7 @@ GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Fl
 | **Cluster** | pk3s — `k3s-master` (192.168.254.50, control plane) + `k3s-media` (192.168.254.109, label/taint `media=yes`); k3s v1.36.4+k3s1 on Debian 13 (trixie) |
 | **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub; controllers `source`, `kustomize`, `helm`, `notification` |
 | **Sync cadence** | GitRepository polls every **1m**, root Kustomization re-applies every **10m** (`prune: true`), each HelmRelease reconciles on its own interval (1h) |
-| **Ingress** | Traefik v3.7 (chart 41.4.0) with IngressRoute CRD, NodePort 30080/30443 |
+| **Ingress** | Traefik v3.8 (chart 43.0.0) with IngressRoute CRD, NodePort 30080/30443 |
 | **TLS** | cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
 | **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
@@ -95,7 +95,7 @@ clusters/pk3s/
 ├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (chart 2.22.0, decrypts in-cluster)
-├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
+├── traefik/                   # Ingress controller (chart 43.0.0 → Traefik v3.8.0, NodePort 30080/30443)
 ├── watcharr/                  # Media watch list / tracker 4.4.0 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
 └── windshift/                 # Work management / Jira alternative 0.9.6 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
 ```
@@ -273,7 +273,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | Namespace | What runs there | Reached as |
 |---|---|---|
 | `flux-system` | Flux Operator + the four controllers, HelmRepositories, `flux-dashboard` UI (`flux-operator:9080`) | LAN `fluxops.local` |
-| `traefik` | Ingress controller (chart 41.4.0 → Traefik v3.7.12), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
+| `traefik` | Ingress controller (chart 43.0.0 → Traefik v3.8.0), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
 | `cloudflared` | Cloudflare Tunnel connector (metrics on `:2000`, scraped) | — (dials out) |
 | `cert-manager` | cert-manager v1.21 + Let's Encrypt DNS-01 ClusterIssuers | — |
 | `sealed-secrets` | SealedSecrets controller (chart 2.22.0, controller 0.41.2) | — |
@@ -327,7 +327,7 @@ about to touch an app.
 | forgejo | forgejo | 17.3.3 |
 | forgejo-runner | forgejo-runner | 0.7.6 |
 | nextcloud | nextcloud | 9.4.6 |
-| traefik | traefik | 41.4.0 |
+| traefik | traefik | 43.0.0 |
 | monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.7.0 / 6.17.1 |
 | media | immich | 0.13.4 |
 | pangolin | newt | 1.6.0 |
@@ -424,7 +424,11 @@ then edit and `kubectl apply -f flux-instance.yaml`. `migrateResources: true` (d
 CRD stored versions. Before a Flux minor bump, grep the repo for removed `apiVersion`s; 2.9
 dropped `notification.toolkit.fluxcd.io/v1beta2` and `image.toolkit.fluxcd.io/v1beta2`.
 Rollback: `helm rollback flux-operator -n flux-system` plus re-apply the previous
-`distribution.version`.
+`distribution.version`. Operator v0.63.x logs `failed to migrate resources to the latest storage
+version … continue list option is not supported by the cache` on every reconcile (upstream
+flux-operator#1110). It is logged and swallowed, and the instance stays Ready. Here it only leaves
+`alerts`/`providers` CRDs with storedVersions `["v1beta3","v1"]` (no such objects exist). Take an
+operator release with the fix before a Flux release that drops `v1beta3` from those CRDs.
 
 33. **The scrobble stack is LAN-only by design:** Multi-Scrobbler's dashboard has no
 authentication (upstream warns against public exposure) and Koito's read endpoints are
@@ -461,6 +465,15 @@ carry over. Resources are set explicitly in the HelmRelease, and `install/upgrad
 CreateReplace` keeps the CRD in step (Flux skips CRD updates by default). Controller ≥ 0.41 also
 re-heals Secrets that were edited by hand back to the `SealedSecret` content — change the sealed
 source, never the decrypted `Secret`.
+40. **Traefik service type is `service.spec.type`, and the chart's CRDs need `CreateReplace`:**
+`service.type` was never read by the chart; it only worked because `spec.type` already defaults
+to `LoadBalancer`. Chart ≥ 43 rejects it in the values schema, so the HelmRelease sets
+`service.spec.type: LoadBalancer`. The Traefik and Hub CRDs ship in the chart's `crds/`, which
+helm-controller only creates on install, so `install/upgrade.crds: CreateReplace` keeps them in
+step. 41.4.0 → 43.0.0 (2026-11-26) changed them only additively (`respondingTimeouts`, `tap`,
+`peerCertSANs`, `streamBody`). Gateway API is not used (no CRDs, provider off), so the v3.8 Gateway
+v1.7 CRD prerequisite does not apply. Rollback: revert the commit. The CRDs stay at the newer,
+additive schema, which v3.7 ignores.
 
 
 ## Forgejo Runner
