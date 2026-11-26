@@ -13,7 +13,6 @@ resources:
   - flux-monitoring
   - forgejo
   - forgejo-runner
-  - hris
   - koito
   - media
   - monitoring

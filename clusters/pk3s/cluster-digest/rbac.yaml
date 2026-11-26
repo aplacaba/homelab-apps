@@ -33,8 +33,8 @@ subjects:
     name: digest-worker
     namespace: cluster-digest
 ---
-# Registry pull credentials for the private charts (hris on ghcr, cv-datastar
-# on fgit) — restricted to the two existing dockerconfigjson secrets.
+# Registry pull credentials for the private cv-datastar chart on fgit —
+# restricted to that one dockerconfigjson secret.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -43,7 +43,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["forgejo-registry-auth", "ghcr-registry-auth"]
+    resourceNames: ["forgejo-registry-auth"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
