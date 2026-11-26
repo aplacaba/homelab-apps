@@ -17,7 +17,10 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:1.30.1-alpine
+          # >=1.30.7: CVE-2026-123007 / CVE-2026-123633 (Nginx2Shell, HTTP/2 RCE,
+          # fixed 2026-11-18). Never pin below 1.30.7 — the listener here is
+          # HTTP/1.1-only, but the image policy stays on the fixed line.
+          image: nginx:1.30.7-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
