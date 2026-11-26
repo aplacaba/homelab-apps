@@ -12,13 +12,13 @@ GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Fl
 | **GitOps** | Flux Operator (FluxInstance), one-way sync from GitHub; controllers `source`, `kustomize`, `helm`, `notification` |
 | **Sync cadence** | GitRepository polls every **1m**, root Kustomization re-applies every **10m** (`prune: true`), each HelmRelease reconciles on its own interval (1h) |
 | **Ingress** | Traefik v3.7 (chart 41.4.0) with IngressRoute CRD, NodePort 30080/30443 |
-| **TLS** | cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
+| **TLS** | cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
 | **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
 | **Secrets** | SealedSecrets (`sealed-secrets` chart 2.5.19, controller 0.31.0) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` (k3s built-in, master) + `media-local-path` (dedicated provisioner pinned to `k3s-media`) |
-| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry (Forgejo 15.0.6). SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
+| **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry (Forgejo 15.0.12). SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
 
 ## GitOps Workflow — git first, never manual kubectl
 
@@ -77,27 +77,27 @@ terraform/
 
 clusters/pk3s/
 ├── kustomization.yaml         # Root — lists all app directories
-├── actual-budget/             # Actual Budget 26.8 personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
-├── cert-manager/              # cert-manager v1.20 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
+├── actual-budget/             # Actual Budget 26.11 personal finance (raw manifests, SQLite on 2Gi PVC) — LAN budget.local, public budget.watchtoken.org
+├── cert-manager/              # cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site, chart 0.3.0 — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (OCI registry)
 ├── floci/                     # FLOCI tool (raw manifests, `floci/floci:latest`) — LAN floci.local
 ├── flux-dashboard/            # Flux web UI (raw manifests) — LAN fluxops.local
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
-├── forgejo/                   # Git + Actions + Registry (chart 17.1.4 → Forgejo 15.0.6, external PostgreSQL) — fgit.watchtoken.org
+├── forgejo/                   # Git + Actions + Registry (chart 17.3.3 → Forgejo 15.0.12, external PostgreSQL) — fgit.watchtoken.org
 ├── forgejo-runner/            # CI runner (chart 0.7.6 → runner 12.7.3 + DinD)
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
 ├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
-├── media/                     # Media stack on the k3s-media node (immich chart 0.13.1 + raw manifests) — all LAN-only *.local
-├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.0.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
+├── media/                     # Media stack on the k3s-media node (immich chart 0.13.4 + raw manifests) — all LAN-only *.local
+├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.7.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
 ├── multi-scrobbler/           # Scrobble bridge (0.19.2, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
-├── nextcloud/                 # File sync & share (chart 9.2.6 → Nextcloud 34.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
+├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.12.3 → VPS relay for public jellyfin/seerr (chart 1.4.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
-├── watcharr/                  # Media watch list / tracker 4.2.1 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
-└── windshift/                 # Work management / Jira alternative 0.9.3 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
+├── watcharr/                  # Media watch list / tracker 4.4.0 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
+└── windshift/                 # Work management / Jira alternative 0.9.6 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
 ```
 
 ## App Deployment Pattern
@@ -271,23 +271,23 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `flux-system` | Flux Operator + the four controllers, HelmRepositories, `flux-dashboard` UI (`flux-operator:9080`) | LAN `fluxops.local` |
 | `traefik` | Ingress controller (chart 41.4.0 → Traefik v3.7.12), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
 | `cloudflared` | Cloudflare Tunnel connector (metrics on `:2000`, scraped) | — (dials out) |
-| `cert-manager` | cert-manager v1.20 + Let's Encrypt DNS-01 ClusterIssuers | — |
+| `cert-manager` | cert-manager v1.21 + Let's Encrypt DNS-01 ClusterIssuers | — |
 | `sealed-secrets` | SealedSecrets controller (chart 2.5.19) | — |
-| `forgejo` | Forgejo 15.0.6 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
+| `forgejo` | Forgejo 15.0.12 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
 | `forgejo-runner` | CI runner 12.7.3 + DinD sidecar | — |
-| `actual-budget` | Actual Budget 26.8, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
+| `actual-budget` | Actual Budget 26.11, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
 | `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
 | `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
 | `hris` | TALA HRIS (Rails 8), chart range `0.x`, 4 external PG databases | public `hris.alacaba.org` |
 | `koito` | Koito 0.3.2 scrobble archive/stats, SQLite + image cache on a 5Gi PVC | LAN `koito.local` |
-| `media` | jellyfin, seerr, immich 3.0 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
-| `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.7 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
+| `media` | jellyfin, seerr, immich 3.4 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
+| `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.20 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
 | `multi-scrobbler` | Multi-Scrobbler 0.19.2 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
-| `nextcloud` | Nextcloud 34.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
+| `nextcloud` | Nextcloud 35.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
 | `pangolin` | newt 1.12.3 agent (chart 1.4.0) → Pangolin VPS relay | — (dials out over WireGuard) |
 | `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
 | `pve` | Reverse proxy to Proxmox VE `192.168.254.165:8006` | LAN `https://pve.local` (self-signed) |
-| `watcharr` | Watcharr 4.2.1, 5Gi PVC | LAN `watcharr.local` |
+| `watcharr` | Watcharr 4.4.0, 5Gi PVC | LAN `watcharr.local` |
 | `kube-system` | k3s internals: coredns 1.14.6, metrics-server 0.9.0, local-path-provisioner 0.0.37, svclb | — |
 
 Stray resources **not** managed by Flux (leftovers from earlier node work, safe to delete by hand):
@@ -318,23 +318,23 @@ about to touch an app.
 
 | Namespace | Release | Chart version |
 |---|---|---|
-| cert-manager | cert-manager | v1.20.2 |
+| cert-manager | cert-manager | v1.21.3 |
 | cv-datastar | cv-datastar | 0.3.0 |
-| forgejo | forgejo | 17.1.4 |
+| forgejo | forgejo | 17.3.3 |
 | forgejo-runner | forgejo-runner | 0.7.6 |
-| nextcloud | nextcloud | 9.2.6 |
+| nextcloud | nextcloud | 9.4.6 |
 | traefik | traefik | 41.4.0 |
-| monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.0.0 / 6.17.1 |
-| media | immich | 0.13.1 |
+| monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.7.0 / 6.17.1 |
+| media | immich | 0.13.4 |
 | pangolin | newt | 1.4.0 |
 | sealed-secrets | sealed-secrets | 2.5.19 |
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
-Raw-manifest apps (no HelmRelease): actual-budget 26.8.1, cloudflared 2026.10.4,
+Raw-manifest apps (no HelmRelease): actual-budget 26.11.0, cloudflared 2026.11.2,
 koito 0.3.2, multi-scrobbler 0.19.2,
-floci (`floci/floci:latest`), watcharr v4.2.1, windshift 0.9.3, pve (proxy only), and the
-media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.2, shelfmark v1.6.2, immich valkey
-9.1, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
+floci (`floci/floci:latest`), watcharr v4.4.0, windshift 0.9.6, pve (proxy only), and the
+media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey
+9.2, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
 ### Persistent volumes
 
@@ -439,7 +439,7 @@ and drops to `PUID`/`PGID`; a `capabilities: drop: [ALL]` securityContext breaks
 ## Forgejo Runner
 
 The CI runner (runner 12.7.3) runs in `forgejo-runner` namespace, connects to the internal Forgejo
-service (`forgejo-http.forgejo.svc:3000`). Uses a Docker-in-Docker sidecar (docker 29.5-dind) for
+service (`forgejo-http.forgejo.svc:3000`). Uses a Docker-in-Docker sidecar (docker 29.10-dind) for
 container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
 `docker://node:22-bookworm`).
 
@@ -555,7 +555,7 @@ Per database, most recent dump → restore into a scratch DB with `pg_restore --
 ## Windshift
 
 Work management / Jira alternative (deployed 2026-09-24, replaced Papra). Single Go container
-(`ghcr.io/windshiftapp/windshift:v0.9.3`) on the central PostgreSQL (`windshift` db/role) with
+(`ghcr.io/windshiftapp/windshift:v0.9.6`) on the central PostgreSQL (`windshift` db/role) with
 attachments on a 5Gi `local-path` PVC, public at `https://windshift.watchtoken.org` — **no `.local`
 route** (gotcha #18). First-run admin setup was claimed 2026-09-24; the temporary Traefik block was
 removed (gotcha #19). Upgraded to 0.9.3 on 2026-11-07 (0.9.x needs PostgreSQL ≥ 15; auto-migrations,

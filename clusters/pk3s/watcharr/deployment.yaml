@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: watcharr
-          image: ghcr.io/sbondco/watcharr:v4.2.1
+          image: ghcr.io/sbondco/watcharr:v4.4.0
           ports:
             - containerPort: 3080
               name: http

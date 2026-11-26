@@ -35,7 +35,7 @@ spec:
               - "ubuntu-22.04:docker://node:22-bookworm"
     dind:
       image:
-        tag: "29.5-dind"
+        tag: "29.10-dind"
       resources:
         limits:
           cpu: 4000m
