@@ -41,6 +41,9 @@ spec:
         main:
           containers:
             main:
+              # Chart 0.13.4 defaults to 9.1.2-alpine; keep tag + digest together.
+              image:
+                tag: 9.2-alpine@sha256:c8e2d17498838af5d91e12eb7c11220b3434a7b7131a333e3af52ad5e0b80882
               resources:
                 requests:
                   memory: 32Mi
