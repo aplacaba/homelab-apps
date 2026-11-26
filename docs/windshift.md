@@ -2,7 +2,7 @@
 
 Deployed 2026-09-24, replacing Papra (backup of the Papra PVC in
 `~/backups/papra-2026-09-24/` on the admin workstation). Single Go container —
-`ghcr.io/windshiftapp/windshift:v0.9.3`, scratch image, UID 65534, port 8080 —
+`ghcr.io/windshiftapp/windshift:v0.9.6`, scratch image, UID 65534, port 8080 —
 with the database on the central PostgreSQL box (`192.168.254.104`, db + role
 `windshift`) and attachments/plugins on a 5Gi `local-path` PVC. Raw manifests
 in `clusters/pk3s/windshift/`.
