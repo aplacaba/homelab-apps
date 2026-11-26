@@ -11,4 +11,5 @@ resources:
   - helmrelease.yaml
   - helmrelease-loki.yaml
   - helmrelease-promtail.yaml
+  - helmrelease-alloy.yaml
   - ingressroute.yaml
