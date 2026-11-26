@@ -49,6 +49,8 @@ Everything is in `clusters/pk3s/monitoring/` (plus `flux-monitoring/`). Grafana 
   (8080) at `/metrics`. They are PodMonitors because the flux-system Services are owned by the
   operator (`ssa: Ignore`) and only expose 80→9090. Prometheus finds them through
   `podMonitorSelectorNilUsesHelmValues: false`. They feed the **Flux GitOps** dashboard.
+- **Multi-Scrobbler:** a `ServiceMonitor` on the http port at **`/api/metrics`** (60s). It feeds
+  the scrobble-source alerts below. See [koito.md](koito.md).
 
 ## Telegram alerts
 
@@ -62,6 +64,11 @@ Flux controllers  →  PrometheusRule (flux-alerts)  →  Alertmanager  →  Tel
 | `KustomizationFailed` | `gotk_reconcile_condition{status="False", kind="Kustomization"}` | 5m |
 | `HelmReleaseFailed` | `gotk_reconcile_condition{status="False", kind="HelmRelease"}` | 5m |
 | `SourceFailed` | `gotk_reconcile_condition{status="False", kind=~"GitRepository\|HelmRepository\|OCIRepository\|Bucket"}` | 5m |
+| `MultiScrobblerSourceUnhealthy` | `multiscrobbler_source_issues > 0` (expired YouTube cookie, bad ListenBrainz token, not polling) | 30m |
+| `MultiScrobblerNoYouTubeMusicPlays` | no `multiscrobbler_source_discovered{name="ytmusic"}` increase in 3d | 1h |
+
+The two Multi-Scrobbler rules live in `clusters/pk3s/multi-scrobbler/prometheusrule.yaml` (the
+Prometheus rule and ServiceMonitor selectors are `{}`, so app-local rules are picked up).
 
 **What goes to Telegram:** outage and availability alerts. That means pod, deployment,
 statefulset and daemonset health (`KubePodNotReady`, `KubePodCrashLooping`,

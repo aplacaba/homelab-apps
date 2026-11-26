@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: multi-scrobbler-alerts
+  namespace: multi-scrobbler
+spec:
+  groups:
+    - name: multi-scrobbler
+      rules:
+        # MS sets source_issues to +1 when a source needs auth but isn't authed (expired
+        # YouTube cookie, revoked ListenBrainz token) and +1 more when it should poll but
+        # isn't. 30m rides out one transient poll error (sources retry on a 20m heartbeat).
+        - alert: MultiScrobblerSourceUnhealthy
+          expr: |
+            max by (name, type) (multiscrobbler_source_issues) > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Multi-Scrobbler source {{ $labels.name }} is not authenticated or not polling"
+            description: >-
+              Source {{ $labels.name }} ({{ $labels.type }}) has reported {{ $value }} issue(s)
+              for 30m, so plays from it are not reaching Koito. For ytmusic this is almost always
+              an expired cookie: re-capture it signed in and re-seal YTM_COOKIE (docs/koito.md,
+              "Rotating the YouTube cookie"). Check `kubectl -n multi-scrobbler logs
+              deploy/multi-scrobbler | grep -i ytmusic` first.
+
+        # Catches the silent case: authed and polling, but nothing discovered (Google changed
+        # the history API, or the session quietly lost access). It also fires if you simply
+        # haven't played anything on YouTube Music for 3 days. The count_over_time guard keeps
+        # it quiet until Prometheus holds ~3 days of this metric (60s scrape: 4320 samples).
+        - alert: MultiScrobblerNoYouTubeMusicPlays
+          expr: |
+            sum(increase(multiscrobbler_source_discovered{name="ytmusic"}[3d])) == 0
+            and on()
+            sum(count_over_time(multiscrobbler_source_discovered{name="ytmusic"}[3d])) > 3900
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "No YouTube Music plays discovered in 3 days"
+            description: >-
+              Multi-Scrobbler's ytmusic source has discovered no plays in 3 days. If you have
+              been listening, the cookie session has probably stopped returning history, even
+              though the source still reports healthy. Rotate YTM_COOKIE (docs/koito.md).

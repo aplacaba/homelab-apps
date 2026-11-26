@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: multi-scrobbler
+  namespace: multi-scrobbler
+spec:
+  selector:
+    matchLabels:
+      app: multi-scrobbler
+  endpoints:
+    # Prometheus metrics live under /api/metrics (/metrics serves the SPA).
+    - port: http
+      path: /api/metrics
+      interval: 60s

@@ -89,6 +89,23 @@ signing out or reusing that session makes Google rotate the cookie. The first co
 was dead by Oct 28 and went unnoticed for weeks. A failing source logs `Cookie-based
 authentication failed` every 20 min, and MS stops retrying until the pod restarts.
 
+**Telegram alerts tell you when to rotate** (added 2026-11-27). A `ServiceMonitor` scrapes MS's
+Prometheus metrics at `/api/metrics` (`/metrics` is the SPA), and `prometheusrule.yaml` in
+`clusters/pk3s/multi-scrobbler/` defines:
+
+| Alert | Fires when | Meaning |
+|---|---|---|
+| `MultiScrobblerSourceUnhealthy` | `multiscrobbler_source_issues > 0` for 30m | A source is unauthenticated or not polling. For `ytmusic` that means the cookie expired, so rotate it as above. It covers `listenbrainz` too. |
+| `MultiScrobblerNoYouTubeMusicPlays` | no `ytmusic` plays discovered in 3d (after 3d of data) | It's authed but finding nothing. Rotate if you *have* been listening; otherwise ignore it. |
+
+`source_issues` is +1 for "requires auth but not authed" and +1 for "should poll but isn't", so
+`2` is the dead-cookie state. If a dashboard password is ever set at `/setup`, check that
+`/api/metrics` still answers without auth; otherwise the scrape fails and `TargetDown` fires
+instead.
+
+Quick manual check: `kubectl -n multi-scrobbler port-forward deploy/multi-scrobbler 9078` →
+`curl -s localhost:9078/api/metrics | grep source_issues` (all `0` = healthy).
+
 ## Operations
 
 ```bash
