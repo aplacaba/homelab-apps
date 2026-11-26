@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: digest-dashboard
+  namespace: cluster-digest
+  labels:
+    app: digest-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: digest-dashboard
+  template:
+    metadata:
+      labels:
+        app: digest-dashboard
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.30.1-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: page
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: data
+              mountPath: /data
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: page
+          configMap:
+            name: digest-nginx
+        - name: html
+          configMap:
+            name: digest-page
+        - name: data
+          persistentVolumeClaim:
+            claimName: digest-data

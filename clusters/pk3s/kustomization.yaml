@@ -6,6 +6,7 @@ resources:
   - actual-budget
   - cert-manager
   - cloudflared
+  - cluster-digest
   - cv-datastar
   - floci
   - flux-dashboard

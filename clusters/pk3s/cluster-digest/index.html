@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cluster digest</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --fg: #c9d1d9; --muted: #8b949e;
+    --green: #3fb950; --yellow: #d29922; --orange: #db6d28; --red: #f85149;
+    --blue: #58a6ff; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 2rem;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); margin-bottom: 1.5rem; }
+  .chips { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: .5rem .9rem; min-width: 110px;
+  }
+  .chip .n { font-size: 1.5rem; font-weight: 600; }
+  .chip .l { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+  .n.red { color: var(--red); } .n.orange { color: var(--orange); }
+  .n.yellow { color: var(--yellow); } .n.green { color: var(--green); }
+  input[type=text] {
+    width: 100%; background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: .55rem .8rem; margin-bottom: 1rem; font-size: .95rem;
+  }
+  input:focus { outline: 1px solid var(--blue); }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; color: var(--muted); font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .04em;
+    border-bottom: 1px solid var(--border); padding: .5rem .6rem;
+  }
+  td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--panel); }
+  .badge {
+    display: inline-block; padding: .1rem .55rem; border-radius: 999px;
+    font-size: .75rem; font-weight: 600;
+  }
+  .b-major { background: #f8514922; color: var(--red); }
+  .b-minor { background: #db6d2822; color: var(--orange); }
+  .b-patch { background: #d2992222; color: var(--yellow); }
+  .b-current { background: #3fb95022; color: var(--green); }
+  .b-pinned { background: #58a6ff22; color: var(--blue); }
+  .b-tracks-latest { background: #bc8cff22; color: var(--purple); }
+  .b-unknown, .b-downgrade { background: #8b949e22; color: var(--muted); }
+  .range { color: var(--purple); font-size: .78rem; }
+  .stale { color: var(--red); font-weight: 600; }
+  canvas { display: block; margin: 2rem 0 .5rem; width: 100%; height: 120px; }
+  .spark-label { color: var(--muted); font-size: .78rem; }
+  .err { color: var(--red); padding: 1rem; border: 1px solid var(--red);
+         border-radius: 8px; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .78rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>cluster digest</h1>
+  <div class="sub">running vs available versions &middot; worker runs biweekly (Sat 04:00, even ISO weeks)</div>
+
+  <div class="chips" id="chips"></div>
+  <input type="text" id="filter" placeholder="filter by name, namespace, kind…">
+  <table id="tbl">
+    <thead><tr>
+      <th>App</th><th>Namespace</th><th>Kind</th><th>Running</th>
+      <th>Latest</th><th>Update</th><th></th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <canvas id="spark" width="1000" height="120"></canvas>
+  <div class="spark-label">outdated entries over time (weekly worker runs)</div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const BUMP_ORDER = { major: 0, minor: 1, patch: 2, unknown: 3, downgrade: 4, "tracks-latest": 5, pinned: 6, current: 7 };
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function render(data) {
+  const entries = [...(data.entries || [])]
+    .sort((a, b) => (BUMP_ORDER[a.bump] ?? 9) - (BUMP_ORDER[b.bump] ?? 9) || a.name.localeCompare(b.name));
+
+  const counts = { major: 0, minor: 0, patch: 0, autotrack: 0 };
+  for (const e of entries) {
+    if (counts[e.bump] !== undefined) counts[e.bump]++;
+    if (e.bump === "tracks-latest" || (e.range || "").startsWith("auto-follow")) counts.autotrack++;
+  }
+  const chip = (n, cls, label) =>
+    `<div class="chip"><div class="n ${cls}">${n}</div><div class="l">${label}</div></div>`;
+  document.getElementById("chips").innerHTML =
+    chip(counts.major + counts.minor + counts.patch, "red", "outdated") +
+    chip(counts.major, "red", "major") +
+    chip(counts.minor, "orange", "minor") +
+    chip(counts.patch, "yellow", "patch") +
+    chip(counts.autotrack, "green", "auto-follow / latest");
+
+  const fill = q => {
+    const rx = new RegExp(q, "i");
+    document.getElementById("rows").innerHTML = entries.filter(e =>
+      !q || rx.test(`${e.name} ${e.ns} ${e.kind} ${e.bump}`)
+    ).map(e => `
+      <tr>
+        <td><strong>${esc(e.name)}</strong></td>
+        <td>${esc(e.ns)}</td>
+        <td>${esc(e.kind)}</td>
+        <td>${esc(e.running)}</td>
+        <td>${e.latest === null || e.latest === "null" ? "&mdash;" : esc(e.latest)}</td>
+        <td><span class="badge b-${esc(e.bump)}">${esc(e.bump)}</span></td>
+        <td class="range">${esc((e.range || "").startsWith("auto-follow") ? e.range : "")}</td>
+      </tr>`).join("");
+  };
+  fill("");
+  document.getElementById("filter").addEventListener("input", ev => fill(ev.target.value.trim()));
+
+  // staleness: warn if the worker hasn't run in 16+ days (biweekly cadence)
+  const ageDays = (Date.now() - new Date(data.generated).getTime()) / 86400000;
+  document.getElementById("footer").innerHTML = ageDays > 16
+    ? `&bull; <span class="stale">worker is stale — last ran ${Math.floor(ageDays)} days ago. Is the CronJob alive?</span>`
+    : `&bull; last checked ${Math.floor(ageDays)} day${Math.floor(ageDays) === 1 ? "" : "s"} ago (${esc(data.generated)})`;
+
+  drawSpark(data.history || []);
+}
+
+function drawSpark(hist) {
+  const cv = document.getElementById("spark"), ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, pad = 8;
+  ctx.clearRect(0, 0, W, H);
+  if (!hist.length) return;
+  const max = Math.max(1, ...hist.map(h => h.outdated || 0));
+  const step = hist.length > 1 ? (W - 2 * pad) / (hist.length - 1) : 0;
+  // gridline
+  ctx.strokeStyle = "#30363d";
+  ctx.beginPath(); ctx.moveTo(pad, H - pad); ctx.lineTo(W - pad, H - pad); ctx.stroke();
+  // area
+  ctx.beginPath();
+  hist.forEach((h, i) => {
+    const x = pad + i * step;
+    const y = (H - pad) - (h.outdated || 0) / max * (H - 2 * pad);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.strokeStyle = "#58a6ff"; ctx.lineWidth = 2; ctx.stroke();
+  // dots + last value
+  hist.forEach((h, i) => {
+    const x = pad + i * step;
+    const y = (H - pad) - (h.outdated || 0) / max * (H - 2 * pad);
+    ctx.fillStyle = "#58a6ff"; ctx.beginPath(); ctx.arc(x, y, 3, 0, 2 * Math.PI); ctx.fill();
+  });
+  const last = hist[hist.length - 1];
+  if (last) {
+    ctx.fillStyle = "#8b949e"; ctx.font = "12px sans-serif";
+    ctx.fillText(`${last.outdated} outdated · ${last.week}`, pad + 4, pad + 12);
+  }
+}
+
+fetch("/status.json").then(r => r.json()).then(render).catch(err => {
+  document.getElementById("chips").innerHTML =
+    `<div class="err">No status data yet — the worker hasn't run or the PVC is empty: ${esc(err.message)}</div>`;
+});
+</script>
+</body>
+</html>
