@@ -424,7 +424,11 @@ then edit and `kubectl apply -f flux-instance.yaml`. `migrateResources: true` (d
 CRD stored versions. Before a Flux minor bump, grep the repo for removed `apiVersion`s; 2.9
 dropped `notification.toolkit.fluxcd.io/v1beta2` and `image.toolkit.fluxcd.io/v1beta2`.
 Rollback: `helm rollback flux-operator -n flux-system` plus re-apply the previous
-`distribution.version`.
+`distribution.version`. Operator v0.63.x logs `failed to migrate resources to the latest storage
+version … continue list option is not supported by the cache` on every reconcile (upstream
+flux-operator#1110). It is logged and swallowed, and the instance stays Ready. Here it only leaves
+`alerts`/`providers` CRDs with storedVersions `["v1beta3","v1"]` (no such objects exist). Take an
+operator release with the fix before a Flux release that drops `v1beta3` from those CRDs.
 
 33. **The scrobble stack is LAN-only by design:** Multi-Scrobbler's dashboard has no
 authentication (upstream warns against public exposure) and Koito's read endpoints are
