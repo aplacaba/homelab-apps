@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: floci
-          image: floci/floci:latest
+          image: floci/floci:2.5.0
           ports:
             - containerPort: 4566
               name: aws

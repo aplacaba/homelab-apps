@@ -81,7 +81,7 @@ clusters/pk3s/
 ├── cert-manager/              # cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) ClusterIssuers + sealed CF token
 ├── cloudflared/               # Cloudflare Tunnel (raw manifests; token is a SealedSecret)
 ├── cv-datastar/               # CV site, chart 0.3.0 — served at alacaba.org (landing `/`, CV `/cv/`); cv.alacaba.org + cv.watchtoken.org 301 → alacaba.org/cv (OCI registry)
-├── floci/                     # FLOCI tool (raw manifests, `floci/floci:latest`) — LAN floci.local
+├── floci/                     # FLOCI tool (raw manifests, `floci/floci:2.5.0`) — LAN floci.local
 ├── flux-dashboard/            # Flux web UI (raw manifests) — LAN fluxops.local
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
 ├── forgejo/                   # Git + Actions + Registry (chart 17.3.3 → Forgejo 15.0.12, external PostgreSQL) — fgit.watchtoken.org
@@ -336,9 +336,11 @@ about to touch an app.
 
 Raw-manifest apps (no HelmRelease): actual-budget 26.11.0, cloudflared 2026.11.2,
 koito 0.3.2, multi-scrobbler 0.21.3,
-floci (`floci/floci:latest`), watcharr v4.4.0, windshift 0.9.6, pve (proxy only), and the
-media Deployments — jellyfin `version-12.4ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey
-9.2, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
+floci 2.5.0, watcharr v4.4.0, windshift 0.9.6, pve (proxy only), and the media Deployments —
+jellyfin `version-12.4ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey 9.2, flaresolverr
+v3.5.2, sonarr `4.0.20.3014-ls5`, radarr `7.0.3.10918-ls328`, lidarr `3.1.6.5079-ls49`, prowlarr
+`3.0.2.5780-ls169`, bazarr `v1.6.2-ls373`, and the download pod — gluetun v3.41.3, qbittorrent
+`5.3.0_v2.1.2-ls487`, sabnzbd `5.1.3-ls281` (pinned 2026-11-26 to the digests then running).
 
 ### Persistent volumes
 
@@ -406,10 +408,23 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 29. **CrowdSec can block friends:** residential IPs occasionally carry bad reputation. Unblock via `docker compose exec crowdsec cscli decisions delete --ip <ip>` and whitelist with `cscli decisions add --ip <ip> --duration 999999h --type whitelist` (run in `/opt/pangolin` on the VPS).
 30. **actual-budget data is a single small PVC:** Actual Budget stores its SQLite DB + user files on a 2Gi `local-path` PVC (`actual-budget-data`, `/data`). Reclaim is `Delete` — removing the app from the root kustomization wipes your budget. Actual's built-in "Export data" (Settings → Export data) is the off-cluster recovery path; run it before any destructive change.
 
-31. **Most of the media stack tracks `:latest`:** bazarr, lidarr, prowlarr, radarr, sonarr, qbittorrent,
-sabnzbd, flaresolverr and floci carry no tag pin, so a pod restart can silently change the version —
-"what is running" is not recorded in git for those. Jellyfin is the deliberate exception (pinned
-`version-12.4ubu2604` with its own upgrade SOP). Pin a tag here when a version must be reproducible.
+31. **Media and floci images are pinned — never go back to `:latest`/floating tags:** until
+2026-11-26 the *arr apps, qbittorrent, sabnzbd, flaresolverr and floci tracked `:latest` (gluetun
+`v3`) with `imagePullPolicy: Always`, so every container restart silently pulled whatever upstream
+had published. They are now pinned to the exact build each pod was running (versions in the Cluster
+Inventory): LSIO images to their immutable `<version>-ls<NNN>` build tag (not `version-<X>`, which
+moves on LSIO base rebuilds), the rest to their release tag. Jellyfin keeps its own SOP (Media Stack →
+jellyfin 12.x). **Bump procedure:** (1) pick the target — `skopeo inspect -n --format '{{index .Labels
+"org.opencontainers.image.version"}}' docker://ghcr.io/linuxserver/<app>:latest` gives the newest LSIO
+build tag (lscr.io is a slow redirect to ghcr.io); read the upstream release notes for DB migrations;
+(2) for SQLite-backed apps, back up `/config` first if the release migrates the DB; (3) edit the tag,
+commit (`media: bump sonarr 4.0.20.3014-ls5 -> …`), push; (4) once landed, check
+`kubectl get pod -n media -l app=<app> -o jsonpath='{..imageID}'` matches
+`skopeo inspect --raw docker://<image>:<tag> | sha256sum`. Any image-string change — even a no-op
+re-pin to the same digest — rolls the pod. The *arr and `download` Deployments use `maxSurge: 0` /
+`maxUnavailable: 1` (like seerr/shelfmark), so the old pod stops before the new one starts: never two
+writers on one SQLite `/config`, and never two gluetun tunnels on one VPN key. Expect brief downtime;
+a `download` bump restarts gluetun, qbittorrent and sabnzbd together.
 
 32. **Flux itself is managed by the FluxInstance, not by per-controller manifests, and neither
 it nor the operator is synced by Flux:** `flux-instance.yaml` (repo root, outside
