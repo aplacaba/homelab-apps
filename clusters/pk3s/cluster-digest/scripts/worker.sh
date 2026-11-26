@@ -9,8 +9,8 @@
 #      are flagged (bump "tracks-latest"), pinned apps are shown as "pinned".
 #
 # Output: status.json on the shared PVC for the nginx dashboard.
-# Optional: reads the two dockerconfigjson secrets in flux-system (via RBAC
-# resourceNames) to resolve the private hris chart and the fgit OCI registry.
+# Optional: reads the forgejo-registry-auth dockerconfigjson secret in
+# flux-system (via RBAC resourceNames) to resolve the private fgit OCI registry.
 set -uo pipefail
 
 # Biweekly gate: the CronJob fires weekly, but only even ISO weeks run the
@@ -265,11 +265,11 @@ helmrepo_latest() {
 }
 
 # ---------- optional private-registry credentials ---------------------------
-# The two dockerconfigjson secrets Flux already uses for private charts
-# (forgejo-registry-auth → fgit, ghcr-registry-auth → hris). Read by name —
+# The dockerconfigjson secret Flux already uses for the private cv-datastar
+# chart (forgejo-registry-auth → fgit). Read by name —
 # the worker's Role in flux-system is restricted with resourceNames.
 AUTH_JSON="{}"
-for s in forgejo-registry-auth ghcr-registry-auth; do
+for s in forgejo-registry-auth; do
   merged="$(kubectl -n flux-system get "secret/$s" -o jsonpath='{.data.\.dockerconfigjson}' 2>/dev/null | base64 -d \
     | jq -c --argjson acc "$AUTH_JSON" '$acc * .auths' 2>/dev/null)"
   [[ -n "$merged" ]] && { AUTH_JSON="$merged"; log "loaded registry credentials from $s"; }
