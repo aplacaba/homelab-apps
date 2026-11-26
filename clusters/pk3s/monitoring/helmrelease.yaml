@@ -5,10 +5,17 @@ metadata:
   namespace: monitoring
 spec:
   interval: 1h
+  # The prometheus-operator CRDs ship in the chart's crds/ (crds subchart).
+  # helm-controller only creates them on install by default, so without this
+  # an operator upgrade would run against stale CRDs.
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "87.0.1"
+      version: "93.11.0"
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
