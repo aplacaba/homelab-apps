@@ -17,7 +17,13 @@ spec:
         name: forgejo-runner
         namespace: flux-system
   values:
+    # wrenix chart 0.7.6 is its final release (hence knownLastVersion) and
+    # ships runner 12.7.3; override the runner image tag. v13 drops the
+    # ::set-output/::set-env/::add-path workflow commands, the GITEA_RUNNER_*
+    # env vars and container.network_mode, and needs Docker >= 25 (dind 29.10).
     knownLastVersion: true
+    image:
+      tag: "13.2.2"
     runner:
       config:
         create: true
