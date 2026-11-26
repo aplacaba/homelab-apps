@@ -89,7 +89,7 @@ clusters/pk3s/
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
 ├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
 ├── media/                     # Media stack on the k3s-media node (immich chart 0.13.4 + raw manifests) — all LAN-only *.local
-├── monitoring/                # kube-prometheus-stack 93.11.0 + Loki 7.7.0 + Promtail 6.17.1 / Alloy 1.16.0 (migration in progress) + Flux alerts — LAN grafana.local
+├── monitoring/                # kube-prometheus-stack 93.11.0 + Loki 7.7.0 + Alloy 1.16.0 + Flux alerts — LAN grafana.local
 ├── multi-scrobbler/           # Scrobble bridge (0.21.3, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
 ├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
@@ -204,7 +204,7 @@ These are available in `flux-system` namespace. Reference by name in HelmRelease
 | `forgejo` | OCI | `oci://codeberg.org/forgejo-contrib` | forgejo |
 | `forgejo-runner` | OCI | `oci://codeberg.org/wrenix/helm-charts` | forgejo-runner |
 | `prometheus-community` | default | `https://prometheus-community.github.io/helm-charts` | monitoring |
-| `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, promtail, alloy) |
+| `grafana` | default | `https://grafana.github.io/helm-charts` | monitoring (loki, alloy) |
 | `jetstack` | default | `https://charts.jetstack.io` | cert-manager |
 | `cv-datastar` | OCI | `oci://fgit.watchtoken.org/forgejo-admin` | cv-datastar (needs secretRef) |
 | `bitnami` | OCI | `oci://registry-1.docker.io/bitnamicharts` | sealed-secrets |
@@ -285,7 +285,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `hris` | TALA HRIS (Rails 8), chart range `0.x`, 4 external PG databases | public `hris.alacaba.org` |
 | `koito` | Koito 0.3.2 scrobble archive/stats, SQLite + image cache on a 5Gi PVC | LAN `koito.local` |
 | `media` | jellyfin, seerr, immich 3.4 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
-| `monitoring` | kube-prometheus-stack 93.11.0 (operator 0.95.2, Prometheus 3.16, Alertmanager 0.35; 7d retention; Grafana 13.3.2), Loki 3.6.20 + Promtail 3.5.1 / Alloy v1.22.0 (both shipping during the cutover), Alertmanager → Telegram | LAN `grafana.local` |
+| `monitoring` | kube-prometheus-stack 93.11.0 (operator 0.95.2, Prometheus 3.16, Alertmanager 0.35; 7d retention; Grafana 13.3.2), Loki 3.6.20 + Alloy v1.22.0 (log collector DaemonSet), Alertmanager → Telegram | LAN `grafana.local` |
 | `multi-scrobbler` | Multi-Scrobbler 0.21.3 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
 | `nextcloud` | Nextcloud 35.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
 | `pangolin` | newt 1.20.0 agent (chart 1.6.0) → Pangolin VPS relay | — (dials out over WireGuard) |
@@ -328,7 +328,7 @@ about to touch an app.
 | forgejo-runner | forgejo-runner | 0.7.6 |
 | nextcloud | nextcloud | 9.4.6 |
 | traefik | traefik | 43.0.0 |
-| monitoring | kube-prometheus-stack / loki / promtail / alloy | 93.11.0 / 7.7.0 / 6.17.1 / 1.16.0 |
+| monitoring | kube-prometheus-stack / loki / alloy | 93.11.0 / 7.7.0 / 1.16.0 |
 | media | immich | 0.13.4 |
 | pangolin | newt | 1.6.0 |
 | sealed-secrets | sealed-secrets | 2.22.0 |
@@ -382,7 +382,7 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 5. **Runner goes silent after cancellation:** The Forgejo runner can stop picking up jobs after a task is cancelled (poller process stays alive but doesn't fetch). Symptom: `status=waiting` in Forgejo UI but no recent runner logs. Fix: `kubectl rollout restart deploy/forgejo-runner -n forgejo-runner`.
 6. **Runner labels must match workflow `runs-on`:** Runner labels are set at `runner.config.file.runner.labels` (not `runner.file.runner.labels`). Mismatch → jobs queue forever. If labels change, delete the `forgejo-runner-config` secret and restart.
 7. **Bitnami charts are OCI:** Bitnami migrated to `oci://registry-1.docker.io/bitnamicharts`. An HTTP-typed `HelmRepository` fails with `unsupported protocol scheme "oci"` — declare it `type: oci` (see `sealed-secrets/helmrepository.yaml`).
-8. **Loki requires `auth_enabled: false` for Promtail:** The Loki chart defaults `auth_enabled: true`, which requires a tenant ID (X-Scope-OrgID) header. Promtail requests get 401 without it. For single-tenant homelabs, set `loki.auth_enabled: false` in the Loki HelmRelease values.
+8. **Loki requires `auth_enabled: false` for the log collector:** The Loki chart defaults `auth_enabled: true`, which requires a tenant ID (X-Scope-OrgID) header. Alloy (formerly Promtail) pushes get 401 without it. For single-tenant homelabs, set `loki.auth_enabled: false` in the Loki HelmRelease values.
 9. **cert-manager CRD bootstrap is two-phase:** cert-manager's own CRDs (`ClusterIssuer`, `Certificate`) are installed by its HelmRelease, but if those CR objects sit in the *same* Flux kustomization pass, the dry-run aborts (`no matches for kind "Certificate"`) before cert-manager ever installs — deadlock. Fix: install cert-manager first (unreference the CRD-dependent objects), wait for CRDs, then re-add them. See `cert-manager/` history.
 10. **Wildcard cert is a Traefik default TLSStore (cross-ns):** The `*.watchtoken.org` `Certificate` lives in `traefik` ns and is wired to a `default` TLSStore, so any app's IngressRoute just needs `entryPoints: [websecure]` + `tls: {}` — no per-route `secretName`. `allowCrossNamespace` (already on) makes this work across namespaces.
 11. **HTTP→HTTPS redirect must be host-scoped, not global:** Do NOT use `ports.web.redirections.entryPoint` — it would redirect `*.local` (→ https, no cert/route) and break LAN access. Use the shared `redirect-to-https` Middleware (in `traefik/middlewares`) attached only to `*.watchtoken.org` routes on `web`.
@@ -485,6 +485,16 @@ needed no intermediate majors: CRD versions are unchanged (schema-only), 89.x mo
 `~/backups/grafana/pre-kps-93.11.0/grafana-data-pre-13.3.tgz`. Rollback: revert the version.
 The CRDs stay at 0.95 (served versions unchanged), and Grafana needs that DB restored if it
 refuses the newer schema.
+42. **Logs are collected by Grafana Alloy, not Promtail (EOL; removed 2026-11-26):** the `alloy`
+DaemonSet (`monitoring/helmrelease-alloy.yaml`, chart 1.16.0) replicates the promtail 6.17.1
+`kubernetes-pods` job rule-for-rule, so Loki streams keep the same labels (`namespace, pod,
+container, app, instance, component, job=namespace/app, node_name, filename, stream`, plus
+Loki-derived `service_name`). Keep queries and dashboards on those names, and change the relabel
+rules in the HelmRelease's `configMap.content` instead of adding labels ad hoc. Positions live on
+hostPath `/var/lib/alloy` (the chart default `/tmp/alloy` is lost on restart). `tail_from_end =
+true` only affects files with no saved position. The cutover was verified by exact label-set parity
+against 24h of Promtail streams and matching tailed-file counts (73 master / 30 media). Leftover:
+the old `/run/promtail` hostPath on each node (positions only, safe to delete).
 
 
 ## Forgejo Runner
@@ -998,7 +1008,7 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
 - **Rollback (per-app)**: commit replicas 1->0 + confirm stopped, THEN
   restart the old docker container; download unit rolls back atomically.
   Never two writers on the same state.
-- **Only `svclb-traefik` skips the media node** (verified 2026-09-13): `node-exporter` and `promtail`
+- **Only `svclb-traefik` skips the media node** (verified 2026-09-13): `node-exporter` and `alloy`
   both carry `operator: Exists` tolerations and do run on `k3s-media`, so media-node metrics and logs
   are collected after all. The absent svclb pod is harmless — LAN entry is the master's NodePort,
   served from `k3s-master`.
