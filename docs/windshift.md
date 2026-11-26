@@ -11,13 +11,12 @@ in `clusters/pk3s/windshift/`.
 
 | Path | Address | How |
 |---|---|---|
-| **Public** | `https://windshift.watchtoken.org` | Cloudflare tunnel → Traefik websecure (wildcard cert). **The only route** — no `windshift.local` (Windshift rejects plain-HTTP non-localhost origins; guide gotcha #18) |
+| **Public** | `https://windshift.watchtoken.org` | Cloudflare tunnel → Traefik websecure (wildcard cert). **The only route** — no `windshift.local` (Windshift rejects plain-HTTP non-localhost origins; see [networking.md](networking.md#limits-and-rules)) |
 
 Auth: the admin account was claimed on 2026-09-24 (one-shot first-run setup;
 further users are created admin-side). During the claim, `/api/setup` was
 temporarily blocked at Traefik (ipAllowList `127.0.0.1/32` → 403) and the
-account was created over a port-forward; that block has been removed
-(guide gotcha #19). Passkeys bind to `WEBAUTHN_RP_ID=windshift.watchtoken.org`
+account was created over a port-forward; that block has been removed. Passkeys bind to `WEBAUTHN_RP_ID=windshift.watchtoken.org`
 (set explicitly — the container hostname is the container ID).
 
 If the database is ever rebuilt from scratch, re-add the block before the
@@ -35,7 +34,7 @@ kubectl port-forward -n windshift deploy/windshift 8080:8080
   `windshift-secret` SealedSecret (keys `POSTGRES_PASSWORD`, `SSO_SECRET`;
   plaintext source of truth `~/.secrets/windshift.env`, mode 600).
 - `windshift` is in the nightly `pg-backup.sh` run (02:30, 14-day retention);
-  restore per the guide's monthly restore-test procedure.
+  restore per the monthly restore-test procedure in [postgres.md](postgres.md).
 
 ### Attachments
 
@@ -46,7 +45,7 @@ kubectl port-forward -n windshift deploy/windshift 8080:8080
   because Windshift only stats `ATTACHMENT_PATH` and never creates it — the
   PVC has no subdirs until the app makes them, and without it every request
   logs `attachment storage path stat failed` and uploads fail.
-- Public-tunnel uploads are capped at ~100 MB (guide gotcha #22).
+- Public-tunnel uploads are capped at ~100 MB ([networking.md](networking.md#limits-and-rules)).
 
 ### Gotchas
 
