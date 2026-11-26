@@ -25,7 +25,7 @@ spec:
         # Windshift only stats ATTACHMENT_PATH, it never creates it — without
         # this the app logs "attachment storage path stat failed" and uploads fail.
         - name: prepare-data
-          image: busybox:1.37
+          image: busybox:1.38.0
           command:
             - sh
             - -c
