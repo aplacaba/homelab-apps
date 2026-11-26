@@ -89,7 +89,7 @@ clusters/pk3s/
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
 ├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
 ├── media/                     # Media stack on the k3s-media node (immich chart 0.13.4 + raw manifests) — all LAN-only *.local
-├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.7.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
+├── monitoring/                # kube-prometheus-stack 93.11.0 + Loki 7.7.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
 ├── multi-scrobbler/           # Scrobble bridge (0.21.3, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
 ├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
@@ -285,7 +285,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `hris` | TALA HRIS (Rails 8), chart range `0.x`, 4 external PG databases | public `hris.alacaba.org` |
 | `koito` | Koito 0.3.2 scrobble archive/stats, SQLite + image cache on a 5Gi PVC | LAN `koito.local` |
 | `media` | jellyfin, seerr, immich 3.4 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
-| `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.20 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
+| `monitoring` | kube-prometheus-stack 93.11.0 (operator 0.95.2, Prometheus 3.16, Alertmanager 0.35; 7d retention; Grafana 13.3.2), Loki 3.6.20 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
 | `multi-scrobbler` | Multi-Scrobbler 0.21.3 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
 | `nextcloud` | Nextcloud 35.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
 | `pangolin` | newt 1.20.0 agent (chart 1.6.0) → Pangolin VPS relay | — (dials out over WireGuard) |
@@ -328,7 +328,7 @@ about to touch an app.
 | forgejo-runner | forgejo-runner | 0.7.6 |
 | nextcloud | nextcloud | 9.4.6 |
 | traefik | traefik | 43.0.0 |
-| monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.7.0 / 6.17.1 |
+| monitoring | kube-prometheus-stack / loki / promtail | 93.11.0 / 7.7.0 / 6.17.1 |
 | media | immich | 0.13.4 |
 | pangolin | newt | 1.6.0 |
 | sealed-secrets | sealed-secrets | 2.22.0 |
@@ -474,6 +474,17 @@ step. 41.4.0 → 43.0.0 (2026-11-26) changed them only additively (`respondingTi
 `peerCertSANs`, `streamBody`). Gateway API is not used (no CRDs, provider off), so the v3.8 Gateway
 v1.7 CRD prerequisite does not apply. Rollback: revert the commit. The CRDs stay at the newer,
 additive schema, which v3.7 ignores.
+41. **kube-prometheus-stack CRDs follow the chart via `CreateReplace`:** the prometheus-operator CRDs
+are in the chart's `crds/` (crds subchart), which helm-controller skips on upgrade by default, so
+the HelmRelease sets `install/upgrade.crds: CreateReplace`. Do not use the upstream UPGRADE.md
+`kubectl apply --server-side` CRD commands. 87.0.1 → 93.11.0 (2026-11-26, operator 0.92 → 0.95.2)
+needed no intermediate majors: CRD versions are unchanged (schema-only), 89.x moved Grafana to chart
+13/14 (distroless, values schema; nothing here uses `GF_*__FILE`), 90.x creates the
+`prometheus-prometheus-token` Secret for control-plane ServiceMonitor auth, and 92.x adds
+`nodeSelector: kubernetes.io/os: linux` (one restart). Pre-upgrade Grafana DB copy:
+`~/backups/grafana/pre-kps-93.11.0/grafana-data-pre-13.3.tgz`. Rollback: revert the version.
+The CRDs stay at 0.95 (served versions unchanged), and Grafana needs that DB restored if it
+refuses the newer schema.
 
 
 ## Forgejo Runner
