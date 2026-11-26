@@ -85,7 +85,7 @@ clusters/pk3s/
 ├── flux-dashboard/            # Flux web UI (raw manifests) — LAN fluxops.local
 ├── flux-monitoring/           # PodMonitors for the four Flux controllers (scraped by Prometheus)
 ├── forgejo/                   # Git + Actions + Registry (chart 17.3.3 → Forgejo 15.0.12, external PostgreSQL) — fgit.watchtoken.org
-├── forgejo-runner/            # CI runner (chart 0.7.6 → runner 12.7.3 + DinD)
+├── forgejo-runner/            # CI runner (chart 0.7.6, image override → runner 13.2.2 + DinD)
 ├── hris/                      # TALA HRIS applicant tracking (Rails 8 chart from GHCR, 4 external PG DBs, R2 storage) — public hris.alacaba.org
 ├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
 ├── media/                     # Media stack on the k3s-media node (immich chart 0.13.4 + raw manifests) — all LAN-only *.local
@@ -278,7 +278,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `cert-manager` | cert-manager v1.21 + Let's Encrypt DNS-01 ClusterIssuers | — |
 | `sealed-secrets` | SealedSecrets controller (chart 2.22.0, controller 0.41.2) | — |
 | `forgejo` | Forgejo 15.0.12 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
-| `forgejo-runner` | CI runner 12.7.3 + DinD sidecar | — |
+| `forgejo-runner` | CI runner 13.2.2 + DinD sidecar | — |
 | `actual-budget` | Actual Budget 26.11, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
 | `cv-datastar` | CV site (chart 0.3.0) | `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, LAN `cv.local` |
 | `floci` | FLOCI tool, 5Gi PVC | LAN `floci.local` |
@@ -455,10 +455,26 @@ source, never the decrypted `Secret`.
 
 ## Forgejo Runner
 
-The CI runner (runner 12.7.3) runs in `forgejo-runner` namespace, connects to the internal Forgejo
+The CI runner (runner 13.2.2) runs in `forgejo-runner` namespace, connects to the internal Forgejo
 service (`forgejo-http.forgejo.svc:3000`). Uses a Docker-in-Docker sidecar (docker 29.10-dind) for
 container builds. Labels: `ubuntu-latest` and `ubuntu-22.04` (both mapped to
 `docker://node:22-bookworm`).
+
+The wrenix chart 0.7.6 is its **final release** (it fails to render unless
+`knownLastVersion: true`) and still defaults to runner 12.7.3, so the runner version is pinned with
+`image.tag` in the HelmRelease. Bumping that tag reuses the registration stored in the
+`forgejo-runner-config` Secret; no re-registration happens.
+
+**Runner v13 workflow rules** (upgraded 12.7.3 → 13.2.2 on 2026-11-26):
+- `::set-output`, `::set-env` and `::add-path` are gone (warning, no effect) — write to
+  `$GITHUB_OUTPUT`/`$FORGEJO_OUTPUT`, `$GITHUB_ENV`/`$FORGEJO_ENV`, `$FORGEJO_PATH` instead.
+- Expression errors (e.g. a `format()` with too few arguments) and matrix `exclude`s that match
+  nothing now fail the job/workflow instead of warning.
+- The `DOCKER_USERNAME`/`DOCKER_PASSWORD` secrets no longer log in to job-image registries; use
+  `jobs.<id>.container.credentials` (a `docker login` inside a `run:` step, as cv-datastar does, is
+  unaffected).
+- Config `container.network_mode` and the `GITEA_RUNNER_*` env vars are ignored; Docker ≥ 25
+  is required (dind 29.10 is fine).
 
 ### Resource configuration
 
@@ -541,6 +557,30 @@ ssh -T git@ssh.watchtoken.org
 ```
 
 Both should print the Forgejo greeting (`Hi <user>! You've successfully authenticated...`).
+
+## Forgejo version policy (LTS)
+
+Forgejo stays on the **15.0 LTS** line (supported until 2027-07-15); chart 17.3.3 ships 15.x, so no
+image override is needed. Decided 2026-11-26 instead of moving to 17.0, which is a short-lived
+stable release (EOL 2027-01-28) that would force 18 and then 19 within months. Plan the next major
+hop as **15 → 19 LTS** (19.0 due 2027-04-15). Findings from the 15 → 17 research, to re-check for 19:
+
+- Direct jumps across majors are supported ("upgrade straight to the latest released version");
+  no intermediate stop is needed. Migrations are one-way, so rollback = restore the `forgejo` DB
+  dump + PVC backup taken just before.
+- PostgreSQL ≥ 14 required — the central PG 18.3 is fine.
+- The chart's init containers (`configure-gitea` etc.) call `gitea migrate` / `gitea admin user
+  list|create|change-password` and `environment-to-ini`; the 17.0.2-rootless image still ships the
+  `gitea` wrapper and those flags (uid 1000), so a plain `image.tag` override works on chart 17.3.3.
+- 16.0: git hooks are centralised (old per-repo hooks become optional cleanup); the container no
+  longer defaults `REVERSE_PROXY_TRUSTED_PROXIES = *` (we use no reverse-proxy auth); mirrors that
+  follow HTTP redirects now fail; skipped checks report as `skipped`.
+- 17.0: durations in `app.ini` are parsed strictly; default log file is `forgejo.log`; absolute
+  links in repo markdown resolve from the repo root; action-run webhook events are deprecated
+  (existing webhooks must be re-created on the workflow run/job events by hand). Avoid 17.0.0.
+- Before any major: `pg_dump -Fc` of `forgejo` on 192.168.254.104 plus `forgejo dump` / PVC copy;
+  afterwards `forgejo doctor check --all`, then verify web UI, SSH (LAN 30022 + `ssh.watchtoken.org`),
+  the OCI registry (Flux pulls `cv-datastar` from it) and an Actions run.
 
 ## Forgejo PostgreSQL (migration runbook)
 
