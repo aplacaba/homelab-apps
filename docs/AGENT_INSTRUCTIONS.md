@@ -333,7 +333,7 @@ about to touch an app.
 Raw-manifest apps (no HelmRelease): actual-budget 26.11.0, cloudflared 2026.11.2,
 koito 0.3.2, multi-scrobbler 0.19.2,
 floci (`floci/floci:latest`), watcharr v4.4.0, windshift 0.9.6, pve (proxy only), and the
-media Deployments — jellyfin `version-12.0ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey
+media Deployments — jellyfin `version-12.4ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey
 9.2, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
 
 ### Persistent volumes
@@ -405,7 +405,7 @@ file holds the detail (cluster layout, conventions, per-app runbooks, gotchas).
 31. **Most of the media stack tracks `:latest`:** bazarr, lidarr, prowlarr, radarr, sonarr, qbittorrent,
 sabnzbd, flaresolverr and floci carry no tag pin, so a pod restart can silently change the version —
 "what is running" is not recorded in git for those. Jellyfin is the deliberate exception (pinned
-`version-12.0ubu2604` with its own upgrade SOP). Pin a tag here when a version must be reproducible.
+`version-12.4ubu2604` with its own upgrade SOP). Pin a tag here when a version must be reproducible.
 
 32. **Flux itself is managed by the FluxInstance, not by per-controller manifests:** `flux-instance.yaml`
 declares distribution `2.8.x` plus the four components, and the Flux Operator re-renders the
@@ -893,17 +893,32 @@ the 7.8T media disk mounted at `/home/new-media` (UUID fstab entry +
   play/remux keeps working. Symptom after a Jellyfin upgrade to 10.11
   (tonemap via `tonemap_opencl`). Init script re-runs on pod restart — after a
   configmap-only change, `kubectl rollout restart deploy/jellyfin -n media`.
-- **jellyfin 12.0 (image pinned `version-12.0ubu2604`)**: LSIO moved `latest`
-  to 12.0 on release day, and 12.0's DB migration is irreversible without a
+- **jellyfin 12.x (image pinned `version-12.4ubu2604`)**: LSIO moved `latest`
+  to 12.0 on release day, and Jellyfin DB migrations are irreversible without a
   `/config` restore — never use `:latest` here. Upgrade SOP: commit
-  `replicas: 0` + reconcile, back up `/config` via a helper pod (tar to
-  `/home/backups/jellyfin-<ver>/` on k3s-media), bump the pinned tag, commit
-  `replicas: 1`. The Deployment has no `strategy` (RollingUpdate default), so
-  a bare image bump would start the new pod against the live SQLite DB while
-  the old one still runs. 12.0 notes: `EnableLegacyAuthorization` is now
-  `false` (flag still exists as a fallback), a full library scan is required
-  after the upgrade, and seerr 3.5.0 is compatible (modern
-  `Authorization: MediaBrowser` auth, no removed routes used).
+  `replicas: 0` and let it land, back up `/config` via a one-off helper pod
+  (not in git; media nodeSelector + toleration, PVC `jellyfin-config`
+  read-only, hostPath `/home/backups`) as
+  `/home/backups/jellyfin-<new ver>/jellyfin-config-pre-<new ver>.tgz` on
+  k3s-media (+ `.sha256`; check size ≈ 1.9G and `gzip -t`), bump the pinned
+  tag, commit `replicas: 1`. The Deployment has no `strategy` (RollingUpdate
+  default, kept deliberately), so a bare image bump would start the new pod
+  against the live SQLite DB while the old one still runs. 12.0 notes:
+  `EnableLegacyAuthorization` is now `false` (flag still exists as a
+  fallback), a full library scan is required after the upgrade, and seerr
+  3.5.0 is compatible (modern `Authorization: MediaBrowser` auth, no removed
+  routes used). 12.0 → 12.4 (2026-11-26, `12.4ubu2604-ls61`): no breaking or
+  auth changes; 6 migrations applied in ~2s (incl. `MakeOwnerIdIndexesPartial`),
+  seerr 3.5.2 sync verified, no library scan required. Backups:
+  `jellyfin-12.0/jellyfin-config-pre-12.0.tgz` (10.11 state),
+  `jellyfin-12.4/jellyfin-config-pre-12.4.tgz` (12.0 state). Rollback:
+  `replicas: 0` → empty the PVC and restore the matching tarball (helper pod,
+  `tar --numeric-owner -xpzf`) → re-pin the previous tag → `replicas: 1`.
+  Caveat: the LSIO image ships only `mesa-va-drivers`, no iHD — QSV relies on
+  the init script's fallback installing `intel-media-va-driver-non-free` from
+  the Ubuntu archive at every pod start (the Intel `noble` repo line fails as
+  unsigned, harmless). After an upgrade, confirm it in the init log /
+  `dpkg -l intel-media-va-driver-non-free`.
 - **immich DB**: central PostgreSQL 192.168.254.104, database `immich`
   (role immich, password in the sealed secret). Extensions pre-installed:
   vector 0.8.6, vchord 1.1.1 (shared_preload_libraries=vchord.so),
