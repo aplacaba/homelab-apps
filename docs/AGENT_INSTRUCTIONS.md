@@ -422,9 +422,11 @@ commit (`media: bump sonarr 4.0.20.3014-ls5 -> …`), push; (4) once landed, che
 `kubectl get pod -n media -l app=<app> -o jsonpath='{..imageID}'` matches
 `skopeo inspect --raw docker://<image>:<tag> | sha256sum`. Any image-string change — even a no-op
 re-pin to the same digest — rolls the pod. The *arr and `download` Deployments use `maxSurge: 0` /
-`maxUnavailable: 1` (like seerr/shelfmark), so the old pod stops before the new one starts: never two
-writers on one SQLite `/config`, and never two gluetun tunnels on one VPN key. Expect brief downtime;
-a `download` bump restarts gluetun, qbittorrent and sabnzbd together.
+`maxUnavailable: 1` (like seerr/shelfmark): the old pod is told to stop before the new one is created,
+but the controller does **not** wait for it to finish terminating, so the two still overlap for the old
+pod's shutdown window (≤ 30s grace; seen on the 2026-11-26 pin rollout — SIGTERM 07:50:58, new
+containers up 07:51:00–02). Only `strategy: Recreate` waits for the old pod to be gone. Expect brief
+downtime; a `download` bump restarts gluetun, qbittorrent and sabnzbd together.
 
 32. **Flux itself is managed by the FluxInstance, not by per-controller manifests, and neither
 it nor the operator is synced by Flux:** `flux-instance.yaml` (repo root, outside
