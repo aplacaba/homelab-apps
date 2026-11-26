@@ -92,7 +92,7 @@ clusters/pk3s/
 ├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.7.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
 ├── multi-scrobbler/           # Scrobble bridge (0.19.2, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
 ├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
-├── pangolin/                  # Pangolin newt agent 1.12.3 → VPS relay for public jellyfin/seerr (chart 1.4.0, no ingress)
+├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
 ├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
@@ -284,7 +284,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.20 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
 | `multi-scrobbler` | Multi-Scrobbler 0.19.2 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
 | `nextcloud` | Nextcloud 35.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
-| `pangolin` | newt 1.12.3 agent (chart 1.4.0) → Pangolin VPS relay | — (dials out over WireGuard) |
+| `pangolin` | newt 1.20.0 agent (chart 1.6.0) → Pangolin VPS relay | — (dials out over WireGuard) |
 | `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
 | `pve` | Reverse proxy to Proxmox VE `192.168.254.165:8006` | LAN `https://pve.local` (self-signed) |
 | `watcharr` | Watcharr 4.4.0, 5Gi PVC | LAN `watcharr.local` |
@@ -326,7 +326,7 @@ about to touch an app.
 | traefik | traefik | 41.4.0 |
 | monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.7.0 / 6.17.1 |
 | media | immich | 0.13.4 |
-| pangolin | newt | 1.4.0 |
+| pangolin | newt | 1.6.0 |
 | sealed-secrets | sealed-secrets | 2.5.19 |
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
@@ -1067,9 +1067,17 @@ DNS-01 via a scoped Cloudflare token). Transcoding stays at home (B580 QSV).
   `*.watchtoken.org`) triggers issuance. NOT configured via the dashboard —
   the domain is file-managed from the installer.
 - **newt agent** runs in the `pangolin` namespace via the `fossorial/newt`
-  Helm chart 1.4.0, pinned to `k3s-master` (media node budget is constrained).
-  Credentials are a SealedSecret (`newt-auth`). It dials OUT over WireGuard —
-  no inbound ports at home.
+  Helm chart 1.6.0 (newt 1.20.0), pinned to `k3s-master` (media node budget is
+  constrained). Credentials are a SealedSecret (`newt-auth`). It dials OUT over
+  WireGuard — no inbound ports at home. Upgraded from 1.12.3 on 2026-11-26
+  (VPS runs Pangolin server 1.21.1). `disableSSH: true` because newt ≥ 1.13
+  starts a built-in SSH server by default and only HTTP resources are
+  tunnelled. Chart ≥ 1.6.0 ships no default resources, so requests/limits are
+  set per instance (no CPU limit — throttling silently degrades the WireGuard
+  path). newt 1.20.1 moves the main tunnel onto netstack2 with gVisor RACK off
+  (fixes download stalls after packet loss); adopt it via chart bump or
+  `image.tag` once the chart catches up. Rollback: revert the commit (chart
+  1.4.0 / newt 1.12.3) — the tunnel is stateless.
 - **VPS is not GitOps:** config + SQLite DB live in `/opt/pangolin`, backed up
   weekly by the `pangolin-backup` systemd timer on the master (rsync pull to
   `/home/backups/pangolin`, Sun 02:30). Rebuild: reinstall (installer), restore

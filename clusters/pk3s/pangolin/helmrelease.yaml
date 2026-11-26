@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: newt
-      version: "1.4.0"
+      version: "1.6.0"
       sourceRef:
         kind: HelmRepository
         name: fossorial
@@ -24,5 +24,18 @@ spec:
           existingSecretName: newt-auth
         service:
           enabled: false
+        # newt >= 1.13 starts a built-in SSH server by default; only HTTP
+        # resources are tunnelled here, so keep it off.
+        disableSSH: true
+        # chart >= 1.6.0 imposes no sizing; keep the 1.4.0 defaults minus the
+        # CPU limit (upstream: CPU throttling silently degrades the WireGuard path).
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 128Mi
+          limits:
+            memory: 256Mi
+            ephemeral-storage: 256Mi
         nodeSelector:
           kubernetes.io/hostname: k3s-master
