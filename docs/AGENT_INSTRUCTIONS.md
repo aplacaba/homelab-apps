@@ -15,7 +15,7 @@ GitOps repository for a **two-node k3s v1.36.4 homelab cluster** managed by **Fl
 | **TLS** | cert-manager v1.21 + Let's Encrypt DNS-01 (Cloudflare) wildcard `*.watchtoken.org`; terminated on Traefik |
 | **Auth** | None (previously Authentik) |
 | **Tunnel** | Cloudflare Tunnel (cloudflared) for `alacaba.org`, `cv.alacaba.org`, `cv.watchtoken.org`, `fgit.watchtoken.org`, `ssh.watchtoken.org`, `sync.watchtoken.org`, `budget.watchtoken.org`, `papra.watchtoken.org`, `hris.alacaba.org`. HTTPS hostnames route to Traefik `:443` (No TLS Verify); `ssh.watchtoken.org` routes directly to `forgejo-ssh` (raw TCP, no Traefik). Everything else public is 404 at the tunnel. |
-| **Secrets** | SealedSecrets (`sealed-secrets` chart 2.5.19, controller 0.31.0) — encrypted at rest, master key backed up offline |
+| **Secrets** | SealedSecrets (`sealed-secrets` chart 2.22.0, controller 0.41.2) — encrypted at rest, master key backed up offline |
 | **Internal DNS** | `.local` domains via `/etc/hosts` → `192.168.254.50:30080` |
 | **Storage** | `local-path` (k3s built-in, master) + `media-local-path` (dedicated provisioner pinned to `k3s-media`) |
 | **Forgejo** | `fgit.watchtoken.org` — self-hosted Git + Actions + Container Registry (Forgejo 15.0.12). SSH: LAN `ssh://git@192.168.254.50:30022`, public `git@ssh.watchtoken.org` (requires `cloudflared` ProxyCommand). |
@@ -94,7 +94,7 @@ clusters/pk3s/
 ├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
-├── sealed-secrets/            # SealedSecrets controller (Bitnami chart 2.5.19, decrypts in-cluster)
+├── sealed-secrets/            # SealedSecrets controller (chart 2.22.0, decrypts in-cluster)
 ├── traefik/                   # Ingress controller (chart 41.4.0 → Traefik v3.7.12, NodePort 30080/30443)
 ├── watcharr/                  # Media watch list / tracker 4.4.0 (raw manifests, SQLite on a 5Gi PVC) — LAN watcharr.local
 └── windshift/                 # Work management / Jira alternative 0.9.6 (raw manifests, central PostgreSQL, 5Gi attachments PVC) — public windshift.watchtoken.org, no LAN route
@@ -223,7 +223,7 @@ sync block** — the `SealedSecret` is applied like any other manifest.
 
 | Component | Detail |
 |-----------|--------|
-| Controller | `sealed-secrets` namespace, Bitnami chart `2.5.x` (controller 0.31.0) |
+| Controller | `sealed-secrets` namespace, chart `2.22.x` from the `bitnami` OCI repo (controller 0.41.2, upstream image `docker.io/bitnami/sealed-secrets-controller`) — see gotcha #39 |
 | CLI | `kubeseal` at `~/.local/bin/kubeseal` |
 | Example | `clusters/pk3s/cloudflared/sealedsecret.yaml` → decrypts to `Secret cloudflared/tunnel-credentials` |
 
@@ -251,13 +251,17 @@ offline location (password manager / encrypted drive) — never into this repo:
 ```bash
 kubectl get secret -n sealed-secrets -o custom-columns=NAME:.metadata.name --no-headers \
   | grep '^sealed-secrets-key' \
-  | while read k; do kubectl get secret "$k" -n sealed-secrets -o yaml; done \
+  | while read k; do kubectl get secret "$k" -n sealed-secrets -o yaml; echo '---'; done \
   > ~/sealed-secrets-key-backup.yaml
+chmod 600 ~/sealed-secrets-key-backup.yaml
 ```
 
-Current backup lives at `~/sealed-secrets-key-backup.yaml`. The controller rotates
-keys (~every 30 days); re-export periodically so older `SealedSecret`s stay
-recoverable after a rebuild.
+Current backup lives at `~/sealed-secrets-key-backup.yaml` (re-exported 2026-11-26: all six
+keys, `sealed-secrets-key6bj8z` … `sealed-secrets-keydkwx7`; the June single-key export is kept as
+`~/sealed-secrets-key-backup.2026-06-16.yaml`). The controller adds a key every ~30 days and keeps
+the old ones, so re-export after each rotation — any `SealedSecret` sealed with a key missing from
+the backup is unrecoverable after a rebuild. The `echo '---'` matters: without it a multi-key export
+is not valid multi-document YAML. Always re-export before touching the controller.
 
 ## Architecture Notes
 
@@ -272,7 +276,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `traefik` | Ingress controller (chart 41.4.0 → Traefik v3.7.12), wildcard `*.watchtoken.org` Certificate + default TLSStore | NodePort 30080 (`web`) / 30443 (`websecure`) |
 | `cloudflared` | Cloudflare Tunnel connector (metrics on `:2000`, scraped) | — (dials out) |
 | `cert-manager` | cert-manager v1.21 + Let's Encrypt DNS-01 ClusterIssuers | — |
-| `sealed-secrets` | SealedSecrets controller (chart 2.5.19) | — |
+| `sealed-secrets` | SealedSecrets controller (chart 2.22.0, controller 0.41.2) | — |
 | `forgejo` | Forgejo 15.0.12 + Actions + OCI registry (`forgejo-http:3000`, `forgejo-ssh:22`) | public `fgit.watchtoken.org`, SSH NodePort 30022 |
 | `forgejo-runner` | CI runner 12.7.3 + DinD sidecar | — |
 | `actual-budget` | Actual Budget 26.11, SQLite on a 2Gi PVC | LAN `budget.local`, public `budget.watchtoken.org` |
@@ -327,7 +331,7 @@ about to touch an app.
 | monitoring | kube-prometheus-stack / loki / promtail | 87.0.1 / 7.7.0 / 6.17.1 |
 | media | immich | 0.13.4 |
 | pangolin | newt | 1.6.0 |
-| sealed-secrets | sealed-secrets | 2.5.19 |
+| sealed-secrets | sealed-secrets | 2.22.0 |
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
 Raw-manifest apps (no HelmRelease): actual-budget 26.11.0, cloudflared 2026.11.2,
@@ -437,6 +441,16 @@ the existing `/config` files) with `capabilities: drop: [ALL]`. The image defaul
 `65532`, so dropping `runAsUser` makes it exit with `/config is not writable`. Without
 a password set, the dashboard is in "insecure" mode (full access on `*.local`); set
 one at `http://scrobbler.local/setup`.
+39. **The `bitnamicharts/sealed-secrets` OCI chart changed lineage at 2.18:** 2.5.x was the
+Bitnami-catalog build (image `…:0.31.0-debian-12-r0`, chart-imposed resources, PDB); 2.18+ at
+the same OCI path is the upstream `bitnami/sealed-secrets` chart (image `…:0.41.2`, no default
+resources, ClusterRole renamed `secrets-unsealer`, container named `controller`, extra
+`sealed-secrets-metrics` Service). The release name, `sealed-secrets:8080` Service, Deployment
+selector and `--key-prefix sealed-secrets-key` are unchanged, so kubeseal flags and existing keys
+carry over. Resources are set explicitly in the HelmRelease, and `install/upgrade.crds:
+CreateReplace` keeps the CRD in step (Flux skips CRD updates by default). Controller ≥ 0.41 also
+re-heals Secrets that were edited by hand back to the `SealedSecret` content — change the sealed
+source, never the decrypted `Secret`.
 
 
 ## Forgejo Runner
