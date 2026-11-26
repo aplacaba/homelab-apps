@@ -70,6 +70,25 @@ Env vars are read at container start — **re-sealing alone changes nothing**; t
 `secretsChecksum` pattern). The Koito first-boot password is not affected by re-seals:
 rotate it in the UI (Settings → account).
 
+**Cookie-only rotation without `koito.env` or the helper scripts** (used 2026-11-26, when
+neither was on the workstation). `kubeseal --merge-into` replaces just the `YTM_COOKIE`
+key and leaves the Koito/ListenBrainz values untouched:
+
+```bash
+# cookie file = the raw Cookie header value, mode 600, outside the repo
+python3 -I -c 'import sys,json;v=open(sys.argv[1]).read().strip();print(json.dumps({"apiVersion":"v1","kind":"Secret","metadata":{"name":"multi-scrobbler-secrets","namespace":"multi-scrobbler"},"type":"Opaque","stringData":{"YTM_COOKIE":v}}))' <cookie-file> \
+  | kubeseal --controller-name sealed-secrets --controller-namespace sealed-secrets \
+      --format yaml --merge-into clusters/pk3s/multi-scrobbler/sealedsecret-multi-scrobbler.yaml
+# then bump `secrets-revision` in clusters/pk3s/multi-scrobbler/deployment.yaml, commit, push
+```
+
+Capture the cookie **signed in**. A signed-out header has only ~5 visitor cookies (`YSC`,
+`VISITOR_INFO1_LIVE`, …); a valid one is ~2 KB and includes `SAPISID`, `__Secure-3PAPISID`,
+`SID`, `LOGIN_INFO`. Afterwards, close the incognito window **without signing out**:
+signing out or reusing that session makes Google rotate the cookie. The first cookie (Oct 4)
+was dead by Oct 28 and went unnoticed for weeks. A failing source logs `Cookie-based
+authentication failed` every 20 min, and MS stops retrying until the pod restarts.
+
 ## Operations
 
 ```bash

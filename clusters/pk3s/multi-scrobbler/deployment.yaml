@@ -17,7 +17,7 @@ spec:
       labels:
         app: multi-scrobbler
       annotations:
-        secrets-revision: "1"
+        secrets-revision: "2"
     spec:
       terminationGracePeriodSeconds: 30
       # 0.21+ is a distroless image with no s6/PUID/PGID: run as the uid/gid
