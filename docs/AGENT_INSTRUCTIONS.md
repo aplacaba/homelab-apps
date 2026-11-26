@@ -90,7 +90,7 @@ clusters/pk3s/
 ├── koito/                     # Scrobble archive + stats (Koito 0.3.2, raw manifests, SQLite on 5Gi PVC) — LAN koito.local
 ├── media/                     # Media stack on the k3s-media node (immich chart 0.13.4 + raw manifests) — all LAN-only *.local
 ├── monitoring/                # kube-prometheus-stack 87.0.1 + Loki 7.7.0 + Promtail 6.17.1 + Flux alerts — LAN grafana.local
-├── multi-scrobbler/           # Scrobble bridge (0.19.2, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
+├── multi-scrobbler/           # Scrobble bridge (0.21.3, raw manifests): ListenBrainz (Apple Music) + YouTube Music → Koito — LAN scrobbler.local
 ├── nextcloud/                 # File sync & share (chart 9.4.6 → Nextcloud 35.0.3 + MariaDB/Redis subcharts) — LAN sync.local, public sync.watchtoken.org
 ├── pangolin/                  # Pangolin newt agent 1.20.0 → VPS relay for public jellyfin/seerr (chart 1.6.0, no ingress)
 ├── pve/                       # Internal Proxmox VE web UI route — pve.local → 192.168.254.165:8006 (raw manifests)
@@ -282,7 +282,7 @@ Two nodes — `k3s-master` (192.168.254.50) and `k3s-media` (192.168.254.109, ta
 | `koito` | Koito 0.3.2 scrobble archive/stats, SQLite + image cache on a 5Gi PVC | LAN `koito.local` |
 | `media` | jellyfin, seerr, immich 3.4 (+valkey), *arr suite, the VPN'd download pod, flaresolverr, shelfmark — pinned to `k3s-media` | LAN `*.local` only (friends reach jellyfin/seerr through the Pangolin VPS) |
 | `monitoring` | kube-prometheus-stack 87.0.1 (Prometheus 3.12, 7d retention; Grafana 13.0.2), Loki 3.6.20 + Promtail 3.5.1, Alertmanager → Telegram | LAN `grafana.local` |
-| `multi-scrobbler` | Multi-Scrobbler 0.19.2 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
+| `multi-scrobbler` | Multi-Scrobbler 0.21.3 scrobble bridge: ListenBrainz (Apple Music via FastScrobbler) + YouTube Music → Koito | LAN `scrobbler.local` |
 | `nextcloud` | Nextcloud 35.0.3 + MariaDB + Redis (100Gi/8Gi/5Gi PVCs) | LAN `sync.local`, public `sync.watchtoken.org` |
 | `pangolin` | newt 1.20.0 agent (chart 1.6.0) → Pangolin VPS relay | — (dials out over WireGuard) |
 | `papra` | Papra 26.6.1, 10Gi PVC + hostPath ingest folder | public only: `papra.watchtoken.org` |
@@ -331,7 +331,7 @@ about to touch an app.
 | hris | hris | `>=0.1.0 <1.0.0` (currently 0.1.1) |
 
 Raw-manifest apps (no HelmRelease): actual-budget 26.11.0, cloudflared 2026.11.2,
-koito 0.3.2, multi-scrobbler 0.19.2,
+koito 0.3.2, multi-scrobbler 0.21.3,
 floci (`floci/floci:latest`), watcharr v4.4.0, windshift 0.9.6, pve (proxy only), and the
 media Deployments — jellyfin `version-12.4ubu2604`, seerr v3.5.2, shelfmark v1.7.1, immich valkey
 9.2, flaresolverr `:latest`, and the LSIO *arr/download apps tracking `:latest`.
@@ -431,9 +431,12 @@ duplicate scrobbles, and the cookie invalidates eventually. Renewal: fresh incog
 `NODE_OPTIONS=--dns-result-order=ipv4first --no-network-family-autoselection`; without it
 Node's 250 ms attempt timeout races to unreachable AAAA addresses and slow hosts
 (ListenBrainz/Hetzner) fail with `ETIMEDOUT` at startup.
-38. **Multi-Scrobbler needs default Linux capabilities:** its s6 init chowns `/config`
-and drops to `PUID`/`PGID`; a `capabilities: drop: [ALL]` securityContext breaks it
-(`setgroups: Operation not permitted`). Koito keeps full drop-ALL.
+38. **Multi-Scrobbler ≥ 0.21 is distroless and non-root:** no s6 init, no shell, and
+`PUID`/`PGID` are ignored. The pod runs as `runAsUser/runAsGroup: 1000` (the owner of
+the existing `/config` files) with `capabilities: drop: [ALL]`. The image default is
+`65532`, so dropping `runAsUser` makes it exit with `/config is not writable`. Without
+a password set, the dashboard is in "insecure" mode (full access on `*.local`); set
+one at `http://scrobbler.local/setup`.
 
 
 ## Forgejo Runner

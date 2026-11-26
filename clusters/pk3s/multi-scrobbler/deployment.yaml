@@ -20,11 +20,17 @@ spec:
         secrets-revision: "1"
     spec:
       terminationGracePeriodSeconds: 30
+      # 0.21+ is a distroless image with no s6/PUID/PGID: run as the uid/gid
+      # that already owns /config (1000:1000) instead of the image's 65532.
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
         fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: multi-scrobbler
-          image: foxxmd/multi-scrobbler:0.19.2
+          image: foxxmd/multi-scrobbler:0.21.3
           ports:
             - containerPort: 9078
               name: http
@@ -33,10 +39,6 @@ spec:
               value: Asia/Manila
             - name: NODE_OPTIONS
               value: --dns-result-order=ipv4first --no-network-family-autoselection
-            - name: PUID
-              value: "1000"
-            - name: PGID
-              value: "1000"
             - name: KOITO_ID
               value: koito
             - name: KOITO_URL
@@ -94,6 +96,8 @@ spec:
               memory: 1Gi
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
       volumes:
         - name: data
           persistentVolumeClaim:

@@ -24,7 +24,7 @@ LAN. Nothing here is exposed publicly.
 | Component | Version | Namespace | Route |
 |---|---|---|---|
 | Koito | `gabehf/koito:v0.3.2` | `koito` | `http://koito.local:30080` (LAN) |
-| Multi-Scrobbler | `foxxmd/multi-scrobbler:0.19.2` | `multi-scrobbler` | `http://scrobbler.local:30080` (LAN) |
+| Multi-Scrobbler | `foxxmd/multi-scrobbler:0.21.3` | `multi-scrobbler` | `http://scrobbler.local:30080` (LAN) |
 
 Add `192.168.254.50 koito.local scrobbler.local` to `/etc/hosts` on client machines.
 
@@ -102,13 +102,23 @@ kubectl -n multi-scrobbler logs deploy/multi-scrobbler --tail=100     # source s
 
 Both images are pinned by tag in Git. Before bumping Koito, back up `/etc/koito` —
 v0.3.1+ carried an image-cache migration and upstream warns about data migrations
-between releases. MS releases frequently; read the changelog before moving 0.19.2.
+between releases. MS releases frequently; read the changelog before bumping it.
+0.19.2 → 0.21.3 (2026-11-26): 0.20.0 ran an **irreversible** DB migration, and 0.21.0
+switched to a distroless non-root image and added dashboard auth (see gotcha 1).
+Pre-upgrade backup (online `node:sqlite` backup of `ms.db`, integrity ok, plus
+`yti-ytmusic/`): `~/backups/multi-scrobbler/pre-0.21.3/ms-config-pre-0.21.3.tgz`
+(+ `.sha256`) on the workstation. Rollback = `replicas: 0`, restore that tarball into
+the PVC (helper pod, `chown 1000:1000`), pin 0.19.2 with `PUID`/`PGID` back, and
+`replicas: 1`. A bare image revert will not work, because 0.19.2 cannot read the
+migrated DB.
 
 ## Gotchas
 
-1. **MS needs default capabilities.** Its s6 init chowns `/config` and drops to
-   `PUID`/`PGID`; `capabilities: drop: [ALL]` breaks it
-   (`setgroups: Operation not permitted`). Koito keeps full drop-ALL.
+1. **MS ≥ 0.21 runs non-root (distroless).** There's no s6 init or shell, and
+   `PUID`/`PGID` are ignored. The pod sets `runAsUser/runAsGroup: 1000` (the owner of
+   the existing `/config`) and drops ALL capabilities. Without a password the dashboard
+   is "insecure" (full access on `.local`); set one at `/setup`. `/api/health` returns
+   500 if any source is unauthenticated, so the probes stay on `/`.
 2. **IPv4-only cluster vs Node happy-eyeballs.** MS runs with
    `NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselection"`.
    Without it, Node's 250 ms attempt timeout races to unreachable AAAA addresses and
