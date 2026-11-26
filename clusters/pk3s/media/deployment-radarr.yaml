@@ -7,6 +7,11 @@ metadata:
     app: radarr
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: radarr
@@ -17,7 +22,7 @@ spec:
     spec:
       containers:
       - name: radarr
-        image: lscr.io/linuxserver/radarr:latest
+        image: lscr.io/linuxserver/radarr:7.0.3.10918-ls328
         ports:
         - containerPort: 7878
           name: http
