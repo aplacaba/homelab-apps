@@ -463,7 +463,9 @@ rolls it (the raw-manifest equivalent of the chart `secretsChecksum`).
 36. **YouTube Music ingestion is unofficial:** cookie-based history polling can miss or
 duplicate scrobbles, and the cookie invalidates eventually. Renewal: fresh incognito
 `Cookie:` header → `scripts/import-ytm-cookie.sh <file>` → `seal-koito-secrets.sh --bump`
-→ commit/push (see [koito.md](koito.md)).
+→ commit/push (see [koito.md](koito.md)). If those scripts or `~/.secrets/koito.env` are
+missing, replace just that key with `kubeseal --merge-into` (koito.md has the command). The
+cookie must be captured signed in.
 37. **IPv4-only cluster vs Node happy-eyeballs:** Multi-Scrobbler must keep
 `NODE_OPTIONS=--dns-result-order=ipv4first --no-network-family-autoselection`; without it
 Node's 250 ms attempt timeout races to unreachable AAAA addresses and slow hosts
