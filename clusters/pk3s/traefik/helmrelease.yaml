@@ -5,11 +5,17 @@ metadata:
   namespace: traefik
 spec:
   interval: 1h
+  # Chart CRDs (crds/) are only created on install by default; keep them in
+  # step with the chart on every upgrade.
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
   chart:
     spec:
       chart: traefik
       # Pinned to a specific chart version for controlled upgrades.
-      version: "41.4.0"
+      version: "43.0.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -23,8 +29,11 @@ spec:
     # 192.168.254.50-52) after the original `helm install`, while the stored
     # release values still said NodePort. Pin LoadBalancer here so Flux does
     # NOT revert the service type (which would drop the VIP and break ingress).
+    # The chart key is service.spec.type (service.type was never read, and
+    # chart >= 43 rejects it in the values schema).
     service:
-      type: LoadBalancer
+      spec:
+        type: LoadBalancer
 
     ports:
       web:
