@@ -5,13 +5,35 @@ metadata:
   namespace: sealed-secrets
 spec:
   interval: 1h
+  # The CRD ships in the chart's crds/ dir; Flux skips CRD changes on upgrade
+  # by default. CreateReplace keeps it in step with the chart (2.22 only adds
+  # the optional template.immutable field).
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
   chart:
     spec:
       chart: sealed-secrets
-      version: "2.5.x"
+      # From 2.18 the bitnamicharts OCI repo publishes the upstream
+      # (bitnami/sealed-secrets) chart, not the Bitnami-catalog build that
+      # 2.5.x was. Release name, Service `sealed-secrets:8080`, Deployment
+      # selector and --key-prefix are unchanged, so kubeseal and existing
+      # keys keep working.
+      version: "2.22.x"
       sourceRef:
         kind: HelmRepository
         name: bitnami
         namespace: flux-system
   # Chart defaults install the controller + cluster-wide RBAC, so it can decrypt
   # SealedSecrets in any namespace (e.g. cloudflared). It runs in this namespace.
+  values:
+    # The upstream chart sets no resources; keep the sizing the 2.5.x
+    # catalog chart applied.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 150m
+        memory: 192Mi
